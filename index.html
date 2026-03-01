@@ -2087,20 +2087,31 @@
       let uploaded = 0, skipped = 0;
       for (const key of keys) {
         try {
-          const data = await getPdf(key);
+          let data = await getPdf(key);
           if (!data) continue;
-          // Supabase JSON row limit ~1MB - skip if too large
+
+          // Compress if too large before uploading
           const sizeKB = Math.round(data.length * 0.75 / 1024);
-          if (sizeKB > 900) {
-            console.warn('[RoseCat] Página grande demais para Supabase:', key, sizeKB + 'KB');
+          if (sizeKB > 700 && data.startsWith('data:image')) {
+            console.log('[RoseCat] Comprimindo página grande:', key, sizeKB + 'KB');
+            try { data = await compressImage(data, 700, 0.78); } catch(e) {}
+          }
+
+          // Skip non-image data that is still too large
+          const finalKB = Math.round(data.length * 0.75 / 1024);
+          if (finalKB > 900) {
+            console.warn('[RoseCat] Página ainda grande demais:', key, finalKB + 'KB');
             skipped++;
             continue;
           }
+
           const { error } = await client.from('pages').upsert({ key, data });
           if (error) {
             console.warn('[RoseCat] Erro ao salvar página:', key, error.message);
             skipped++;
           } else {
+            // Update local IDB with compressed version
+            if (sizeKB > 700) await savePdf(key, data);
             uploaded++;
           }
         } catch(e) {
@@ -3532,6 +3543,11 @@
         const logo = document.querySelector('.logo');
         // neon apenas no botão +Novo
         applyFilters(); // re-render cards with ADM buttons
+        // Auto-migrate: push all local IDB pages to Supabase silently
+        if (supaReady) {
+          showSaveToast('⏳ Sincronizando páginas...');
+          syncPagesToSupabase().then(() => showSaveToast('✓ Páginas sincronizadas!')).catch(() => {});
+        }
       } else {
         document.getElementById('admError').style.display = 'block';
         document.getElementById('admCodeInput').value = '';
