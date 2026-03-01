@@ -1335,242 +1335,128 @@
 <div id="loadingScreen">
   <style>
     #loadingScreen {
-      background: radial-gradient(ellipse at center, #0d0010 0%, #000 70%);
+      background: radial-gradient(ellipse at 50% 60%, #1a000a 0%, #0a0005 50%, #000 100%);
+      overflow: hidden;
+      justify-content: center;
+      align-items: center;
     }
-    @keyframes girRun {
-      0%   { left: -80px; transform: scaleX(1); }
-      49%  { left: calc(100% + 80px); transform: scaleX(1); }
-      50%  { left: calc(100% + 80px); transform: scaleX(-1); }
-      99%  { left: -80px; transform: scaleX(-1); }
-      100% { left: -80px; transform: scaleX(1); }
+
+    /* ── Petals ── */
+    @keyframes fall {
+      0%   { transform: translateY(-60px) translateX(0px) rotate(0deg) scale(1);   opacity: 0; }
+      10%  { opacity: 1; }
+      100% { transform: translateY(105vh) translateX(var(--dx)) rotate(var(--rot)) scale(0.7); opacity: 0; }
     }
-    @keyframes legL { 0%,100%{transform:rotate(-25deg)} 50%{transform:rotate(25deg)} }
-    @keyframes legR { 0%,100%{transform:rotate(25deg)} 50%{transform:rotate(-25deg)} }
-    @keyframes armW { 0%,100%{transform:rotate(-20deg)} 50%{transform:rotate(20deg)} }
-    @keyframes petalDrift1 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(-30px,120px) rotate(-60deg);opacity:0} }
-    @keyframes petalDrift2 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(25px,130px) rotate(45deg);opacity:0} }
-    @keyframes petalDrift3 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(-15px,110px) rotate(-30deg);opacity:0} }
-    @keyframes petalDrift4 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(35px,125px) rotate(70deg);opacity:0} }
-    @keyframes petalDrift5 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(-25px,140px) rotate(-50deg);opacity:0} }
-    @keyframes rootGrow { 0%{stroke-dashoffset:300} 100%{stroke-dashoffset:0} }
-    @keyframes flicker { 0%,100%{opacity:1} 50%{opacity:0.85} }
-    .pf1{animation:petalDrift1 2.8s ease-in infinite;}
-    .pf2{animation:petalDrift2 3.2s ease-in 0.5s infinite;}
-    .pf3{animation:petalDrift3 2.5s ease-in 1.0s infinite;}
-    .pf4{animation:petalDrift4 3.5s ease-in 0.8s infinite;}
-    .pf5{animation:petalDrift5 2.9s ease-in 1.4s infinite;}
-    .root-line { stroke-dasharray:300; animation:rootGrow 2.5s ease-out forwards; }
-    .gir-flicker { animation:flicker 4s ease-in-out infinite; }
+    .petal {
+      position: absolute;
+      top: -40px;
+      width: var(--w, 18px);
+      height: var(--h, 26px);
+      background: radial-gradient(ellipse at 35% 35%, #ff6080, #c8273a 55%, #7a0d1e);
+      border-radius: 50% 10% 50% 10%;
+      animation: fall var(--dur, 4s) ease-in var(--delay, 0s) infinite;
+      left: var(--x, 50%);
+      filter: drop-shadow(0 0 4px rgba(200,39,58,0.5));
+      --dx: 0px; --rot: 0deg;
+    }
+
+    /* ── Logo ── */
+    @keyframes logoReveal {
+      0%   { opacity: 0; transform: scale(0.85) translateY(20px); filter: blur(8px); }
+      60%  { opacity: 1; transform: scale(1.04) translateY(-4px); filter: blur(0px); }
+      100% { opacity: 1; transform: scale(1) translateY(0px);     filter: blur(0px); }
+    }
+    @keyframes glow-pulse {
+      0%,100% { text-shadow: 0 0 20px #c8273a, 0 0 50px #c8273a44, 0 0 80px #c8273a22; }
+      50%      { text-shadow: 0 0 30px #e84060, 0 0 70px #c8273a88, 0 0 120px #c8273a44; }
+    }
+    @keyframes subtitle-in {
+      0%   { opacity: 0; letter-spacing: 0.5em; }
+      100% { opacity: 0.7; letter-spacing: 0.3em; }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .load-logo-wrap {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      animation: logoReveal 1.4s cubic-bezier(.22,1,.36,1) 0.3s both;
+    }
+    .load-title {
+      font-family: 'Metal Mania', cursive;
+      font-size: clamp(3.5rem, 14vw, 6rem);
+      line-height: 1;
+      letter-spacing: 0.08em;
+      animation: glow-pulse 2.5s ease-in-out 1.8s infinite;
+      position: relative;
+    }
+    .load-title .lr { color: #c8273a; }
+    .load-title .lo { color: #9b59b6; }
+    .load-title .ls { color: #f1c40f; }
+    .load-title .le { color: #4a7fd4; }
+    .load-title .lc { color: #c8273a; font-size: 1.1em; }
+    .load-title .la { color: #9b59b6; }
+    .load-title .lt { color: #f1c40f; }
+    .load-sub {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(0.55rem, 2vw, 0.75rem);
+      color: #c8273a;
+      margin-top: 0.4rem;
+      animation: subtitle-in 1s ease-out 1.6s both;
+    }
+    .load-spinner {
+      width: 28px; height: 28px;
+      border: 2px solid #2a0008;
+      border-top-color: #c8273a;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin: 1.2rem auto 0;
+    }
+    /* decorative rose behind title */
+    .load-bg-rose {
+      position: absolute;
+      font-size: 9rem;
+      opacity: 0.04;
+      z-index: 0;
+      pointer-events: none;
+      user-select: none;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      filter: blur(2px);
+      color: #c8273a;
+    }
   </style>
 
-  <!-- MAIN SVG: roots + roses + text -->
-  <div style="position:relative;width:min(90vw,420px);height:240px;">
-    <svg viewBox="0 0 420 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;overflow:visible;">
-      <defs>
-        <path id="p5" d="M0,0 C2,-10 5,-16 0,-22 C-5,-16 -2,-10 0,0Z"/>
-        <path id="lv" d="M0,0 C-4,-7 -2,-14 0,-18 C2,-14 4,-7 0,0Z"/>
-        <radialGradient id="rg1" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#3a001a"/>
-          <stop offset="100%" stop-color="#0d0010"/>
-        </radialGradient>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="2.5" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-        <filter id="softglow">
-          <feGaussianBlur stdDeviation="4" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
+  <!-- ── petals ── -->
+  <div class="petal" style="--x:5%;  --w:14px;--h:22px;--dur:5.2s;--delay:0.0s;--dx:-30px;--rot:-200deg;"></div>
+  <div class="petal" style="--x:12%; --w:18px;--h:28px;--dur:4.5s;--delay:0.4s;--dx:20px; --rot:250deg;"></div>
+  <div class="petal" style="--x:20%; --w:12px;--h:20px;--dur:6.0s;--delay:1.0s;--dx:-15px;--rot:-180deg;"></div>
+  <div class="petal" style="--x:28%; --w:20px;--h:30px;--dur:4.8s;--delay:0.2s;--dx:35px; --rot:220deg;"></div>
+  <div class="petal" style="--x:35%; --w:15px;--h:24px;--dur:5.5s;--delay:1.5s;--dx:-25px;--rot:-260deg;"></div>
+  <div class="petal" style="--x:42%; --w:10px;--h:18px;--dur:3.9s;--delay:0.7s;--dx:10px; --rot:190deg;"></div>
+  <div class="petal" style="--x:50%; --w:22px;--h:32px;--dur:5.0s;--delay:0.0s;--dx:-40px;--rot:-230deg;"></div>
+  <div class="petal" style="--x:57%; --w:16px;--h:25px;--dur:4.3s;--delay:1.2s;--dx:28px; --rot:280deg;"></div>
+  <div class="petal" style="--x:65%; --w:13px;--h:21px;--dur:5.8s;--delay:0.5s;--dx:-20px;--rot:-210deg;"></div>
+  <div class="petal" style="--x:72%; --w:19px;--h:29px;--dur:4.6s;--delay:1.8s;--dx:15px; --rot:240deg;"></div>
+  <div class="petal" style="--x:80%; --w:11px;--h:19px;--dur:5.3s;--delay:0.9s;--dx:-35px;--rot:-190deg;"></div>
+  <div class="petal" style="--x:88%; --w:17px;--h:27px;--dur:4.1s;--delay:0.3s;--dx:25px; --rot:270deg;"></div>
+  <div class="petal" style="--x:95%; --w:14px;--h:22px;--dur:5.7s;--delay:1.4s;--dx:-18px;--rot:-250deg;"></div>
+  <!-- second wave -->
+  <div class="petal" style="--x:8%;  --w:16px;--h:24px;--dur:4.7s;--delay:2.0s;--dx:22px; --rot:200deg;"></div>
+  <div class="petal" style="--x:25%; --w:12px;--h:20px;--dur:5.4s;--delay:2.5s;--dx:-28px;--rot:-215deg;"></div>
+  <div class="petal" style="--x:45%; --w:20px;--h:30px;--dur:4.9s;--delay:2.2s;--dx:18px; --rot:235deg;"></div>
+  <div class="petal" style="--x:63%; --w:14px;--h:22px;--dur:5.1s;--delay:2.8s;--dx:-22px;--rot:-275deg;"></div>
+  <div class="petal" style="--x:82%; --w:18px;--h:26px;--dur:4.4s;--delay:2.1s;--dx:30px; --rot:255deg;"></div>
 
-      <!-- ══ ROOTS spreading from letters ══ -->
-      <g stroke="#1a4d1a" fill="none" stroke-linecap="round">
-        <!-- roots from R -->
-        <path class="root-line" d="M30,178 C15,195 5,210 -10,225" stroke-width="2.2"/>
-        <path class="root-line" d="M30,178 C20,200 25,215 10,230" stroke-width="1.5" style="animation-delay:0.3s"/>
-        <path class="root-line" d="M45,182 C35,205 20,212 8,228" stroke-width="1.2" style="animation-delay:0.6s"/>
-        <!-- roots from o -->
-        <path class="root-line" d="M75,182 C70,200 60,215 50,235" stroke-width="1.8" style="animation-delay:0.2s"/>
-        <!-- roots from e/C center -->
-        <path class="root-line" d="M195,182 C185,200 170,218 155,240" stroke-width="2.5" style="animation-delay:0.1s"/>
-        <path class="root-line" d="M200,182 C210,200 220,215 215,238" stroke-width="1.8" style="animation-delay:0.4s"/>
-        <path class="root-line" d="M185,178 C175,195 160,205 145,230" stroke-width="1.3" style="animation-delay:0.7s"/>
-        <path class="root-line" d="M210,178 C225,198 235,208 240,232" stroke-width="1.4" style="animation-delay:0.5s"/>
-        <!-- roots from t -->
-        <path class="root-line" d="M310,178 C320,198 325,215 335,235" stroke-width="2" style="animation-delay:0.3s"/>
-        <path class="root-line" d="M295,182 C290,202 280,218 270,238" stroke-width="1.4" style="animation-delay:0.6s"/>
-        <!-- cross roots -->
-        <path class="root-line" d="M100,185 C120,210 150,220 160,240" stroke-width="1.2" style="animation-delay:0.8s"/>
-        <path class="root-line" d="M260,183 C255,205 245,220 240,240" stroke-width="1.3" style="animation-delay:0.9s"/>
-        <!-- brighter accent roots -->
-        <path class="root-line" d="M195,182 C195,195 195,210 195,240" stroke="#2d6e2d" stroke-width="2.8" style="animation-delay:0s"/>
-      </g>
-
-      <!-- ══ VINE through text ══ -->
-      <path d="M5,165 C50,140 90,170 130,148 C165,128 185,108 220,130 C255,150 290,128 380,140"
-            fill="none" stroke="#1e5c1e" stroke-width="2.8" stroke-linecap="round" filter="url(#glow)"/>
-      <path d="M190,130 C185,100 175,65 182,30"
-            fill="none" stroke="#1e5c1e" stroke-width="2" stroke-linecap="round"/>
-      <path d="M220,130 C228,95 238,70 228,38"
-            fill="none" stroke="#1a4d1a" stroke-width="1.6" stroke-linecap="round"/>
-
-      <!-- ══ LEAVES ══ -->
-      <g fill="#1e5c1e" opacity="0.9">
-        <use href="#lv" transform="translate(52,155) rotate(-45) scale(1.5)"/>
-        <use href="#lv" transform="translate(98,162) rotate(35) scale(1.3)"/>
-        <use href="#lv" transform="translate(148,138) rotate(-55) scale(1.6)"/>
-        <use href="#lv" transform="translate(258,138) rotate(28) scale(1.4)"/>
-        <use href="#lv" transform="translate(318,132) rotate(-32) scale(1.2)"/>
-        <use href="#lv" transform="translate(178,80) rotate(-65) scale(1.1)"/>
-        <use href="#lv" transform="translate(228,85) rotate(42) scale(1.0)"/>
-        <use href="#lv" transform="translate(186,50) rotate(-70) scale(0.9)"/>
-      </g>
-
-      <!-- ══ ROSE 1: small left ══ -->
-      <g transform="translate(42,138)" filter="url(#glow)">
-        <g fill="#6b0f1a" opacity="0.7">
-          <use href="#p5" transform="rotate(0) scale(1.4)"/>
-          <use href="#p5" transform="rotate(72) scale(1.4)"/>
-          <use href="#p5" transform="rotate(144) scale(1.4)"/>
-          <use href="#p5" transform="rotate(216) scale(1.4)"/>
-          <use href="#p5" transform="rotate(288) scale(1.4)"/>
-        </g>
-        <g fill="#c8273a">
-          <use href="#p5" transform="rotate(36) scale(1.0)"/>
-          <use href="#p5" transform="rotate(108) scale(1.0)"/>
-          <use href="#p5" transform="rotate(180) scale(1.0)"/>
-          <use href="#p5" transform="rotate(252) scale(1.0)"/>
-          <use href="#p5" transform="rotate(324) scale(1.0)"/>
-        </g>
-        <g fill="#e84a6a"><use href="#p5" transform="rotate(0) scale(0.6)"/><use href="#p5" transform="rotate(120) scale(0.6)"/><use href="#p5" transform="rotate(240) scale(0.6)"/></g>
-        <circle r="4" fill="#3a0508"/>
-      </g>
-
-      <!-- ══ ROSE 2: large center-top ══ -->
-      <g transform="translate(205,30)" filter="url(#softglow)">
-        <g fill="#4a0510" opacity="0.6">
-          <use href="#p5" transform="rotate(0) scale(2.2)"/>
-          <use href="#p5" transform="rotate(60) scale(2.2)"/>
-          <use href="#p5" transform="rotate(120) scale(2.2)"/>
-          <use href="#p5" transform="rotate(180) scale(2.2)"/>
-          <use href="#p5" transform="rotate(240) scale(2.2)"/>
-          <use href="#p5" transform="rotate(300) scale(2.2)"/>
-        </g>
-        <g fill="#8b1a2a" opacity="0.8">
-          <use href="#p5" transform="rotate(30) scale(1.7)"/>
-          <use href="#p5" transform="rotate(90) scale(1.7)"/>
-          <use href="#p5" transform="rotate(150) scale(1.7)"/>
-          <use href="#p5" transform="rotate(210) scale(1.7)"/>
-          <use href="#p5" transform="rotate(270) scale(1.7)"/>
-          <use href="#p5" transform="rotate(330) scale(1.7)"/>
-        </g>
-        <g fill="#c8273a">
-          <use href="#p5" transform="rotate(0) scale(1.2)"/>
-          <use href="#p5" transform="rotate(72) scale(1.2)"/>
-          <use href="#p5" transform="rotate(144) scale(1.2)"/>
-          <use href="#p5" transform="rotate(216) scale(1.2)"/>
-          <use href="#p5" transform="rotate(288) scale(1.2)"/>
-        </g>
-        <g fill="#f06080">
-          <use href="#p5" transform="rotate(36) scale(0.7)"/>
-          <use href="#p5" transform="rotate(156) scale(0.7)"/>
-          <use href="#p5" transform="rotate(276) scale(0.7)"/>
-        </g>
-        <circle r="6" fill="#1a0208"/>
-        <circle r="2.5" fill="#c8273a" opacity="0.8"/>
-      </g>
-
-      <!-- ══ ROSE 3: small right ══ -->
-      <g transform="translate(340,130)" filter="url(#glow)">
-        <g fill="#6b0f1a" opacity="0.7">
-          <use href="#p5" transform="rotate(0) scale(1.2)"/><use href="#p5" transform="rotate(72) scale(1.2)"/>
-          <use href="#p5" transform="rotate(144) scale(1.2)"/><use href="#p5" transform="rotate(216) scale(1.2)"/>
-          <use href="#p5" transform="rotate(288) scale(1.2)"/>
-        </g>
-        <g fill="#c8273a">
-          <use href="#p5" transform="rotate(36) scale(0.85)"/><use href="#p5" transform="rotate(108) scale(0.85)"/>
-          <use href="#p5" transform="rotate(180) scale(0.85)"/><use href="#p5" transform="rotate(252) scale(0.85)"/>
-          <use href="#p5" transform="rotate(324) scale(0.85)"/>
-        </g>
-        <circle r="3.5" fill="#3a0508"/>
-      </g>
-
-      <!-- ══ ROSE 4: tiny extra ══ -->
-      <g transform="translate(148,105)">
-        <g fill="#8b1a2a" opacity="0.8">
-          <use href="#p5" transform="rotate(0) scale(0.9)"/><use href="#p5" transform="rotate(72) scale(0.9)"/>
-          <use href="#p5" transform="rotate(144) scale(0.9)"/><use href="#p5" transform="rotate(216) scale(0.9)"/>
-          <use href="#p5" transform="rotate(288) scale(0.9)"/>
-        </g>
-        <g fill="#e05070"><use href="#p5" transform="rotate(36) scale(0.55)"/><use href="#p5" transform="rotate(156) scale(0.55)"/><use href="#p5" transform="rotate(276) scale(0.55)"/></g>
-        <circle r="2.5" fill="#2a0308"/>
-      </g>
-
-      <!-- ══ FALLING PETALS animated ══ -->
-      <g filter="url(#glow)">
-        <g class="pf1"><use href="#p5" transform="translate(90,148) rotate(20) scale(0.85)" fill="#c8273a" opacity="0.9"/></g>
-        <g class="pf2"><use href="#p5" transform="translate(205,48) rotate(-25) scale(1.0)" fill="#e05070" opacity="0.85"/></g>
-        <g class="pf3"><use href="#p5" transform="translate(225,42) rotate(40) scale(0.75)" fill="#c8273a" opacity="0.9"/></g>
-        <g class="pf4"><use href="#p5" transform="translate(185,52) rotate(-15) scale(0.9)" fill="#d03060" opacity="0.8"/></g>
-        <g class="pf5"><use href="#p5" transform="translate(218,58) rotate(30) scale(0.65)" fill="#e84a6a" opacity="0.85"/></g>
-      </g>
-
-      <!-- ══ HANAHAKI blood drops ══ -->
-      <ellipse cx="28" cy="186" rx="2.5" ry="5" fill="#c8273a" opacity="0.55"/>
-      <ellipse cx="210" cy="188" rx="2" ry="4" fill="#c8273a" opacity="0.45"/>
-      <ellipse cx="100" cy="188" rx="1.8" ry="3.5" fill="#c8273a" opacity="0.4"/>
-
-      <!-- ══ TEXT ══ -->
-      <g class="gir-flicker">
-        <text x="10"  y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#c8273a" filter="url(#glow)">R</text>
-        <text x="52"  y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#9b59b6" filter="url(#glow)">o</text>
-        <text x="92"  y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#f1c40f" filter="url(#glow)">s</text>
-        <text x="130" y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#4a7fd4" filter="url(#glow)">e</text>
-        <text x="172" y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#c8273a" filter="url(#glow)">C</text>
-        <text x="218" y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#9b59b6" filter="url(#glow)">a</text>
-        <text x="258" y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#f1c40f" filter="url(#glow)">t</text>
-      </g>
-    </svg>
-  </div>
-
-  <!-- ══ GIR RUNNING ══ -->
-  <div style="position:relative;width:min(90vw,420px);height:64px;overflow:hidden;margin-top:-8px;">
-    <div style="position:absolute;bottom:4px;animation:girRun 4s linear infinite;" id="girSprite">
-      <svg width="52" height="58" viewBox="0 0 52 58" xmlns="http://www.w3.org/2000/svg">
-        <!-- ears/antennae -->
-        <polygon points="14,8 10,0 18,6" fill="#111"/>
-        <polygon points="38,8 42,0 34,6" fill="#111"/>
-        <!-- body -->
-        <rect x="10" y="10" width="32" height="28" rx="7" fill="#5dc85d" stroke="#111" stroke-width="2"/>
-        <!-- stitch line -->
-        <line x1="26" y1="12" x2="26" y2="36" stroke="#2a7a2a" stroke-width="1.2" stroke-dasharray="3,2"/>
-        <!-- eyes -->
-        <ellipse cx="18" cy="24" rx="7" ry="8" fill="white" stroke="#111" stroke-width="1.5"/>
-        <ellipse cx="36" cy="24" rx="5.5" ry="6.5" fill="white" stroke="#111" stroke-width="1.5"/>
-        <circle cx="17" cy="25" r="2.5" fill="#111"/>
-        <circle cx="36" cy="25" r="2" fill="#111"/>
-        <!-- nose -->
-        <polygon points="26,33 24,37 28,37" fill="#111"/>
-        <!-- mouth/tongue -->
-        <path d="M20,37 Q26,42 32,37" fill="none" stroke="#111" stroke-width="1.2"/>
-        <ellipse cx="26" cy="40" rx="4" ry="3" fill="#ff6b8a" opacity="0.9"/>
-        <!-- zipper -->
-        <rect x="21" y="35" width="10" height="5" rx="1" fill="#888" stroke="#555" stroke-width="0.8"/>
-        <rect x="24" y="36" width="4" height="3" fill="#aaa"/>
-        <!-- legs -->
-        <rect x="14" y="36" width="8" height="14" rx="3" fill="#3a8c3a" stroke="#111" stroke-width="1.5" style="transform-origin:18px 36px;animation:legL 0.4s ease-in-out infinite;"/>
-        <rect x="30" y="36" width="8" height="14" rx="3" fill="#3a8c3a" stroke="#111" stroke-width="1.5" style="transform-origin:34px 36px;animation:legR 0.4s ease-in-out infinite;"/>
-        <!-- feet -->
-        <ellipse cx="18" cy="50" rx="6" ry="4" fill="#222" style="transform-origin:18px 50px;animation:legL 0.4s ease-in-out infinite;"/>
-        <ellipse cx="34" cy="50" rx="6" ry="4" fill="#222" style="transform-origin:34px 50px;animation:legR 0.4s ease-in-out infinite;"/>
-        <!-- arms -->
-        <rect x="4" y="15" width="7" height="14" rx="3" fill="#3a8c3a" stroke="#111" stroke-width="1.5" style="transform-origin:8px 15px;animation:armW 0.4s ease-in-out infinite;"/>
-        <rect x="41" y="15" width="7" height="14" rx="3" fill="#3a8c3a" stroke="#111" stroke-width="1.5" style="transform-origin:45px 15px;animation:armW 0.4s ease-in-out reverse infinite;"/>
-      </svg>
+  <!-- ── logo ── -->
+  <div class="load-logo-wrap">
+    <div class="load-bg-rose">❀</div>
+    <div class="load-title">
+      <span class="lr">R</span><span class="lo">o</span><span class="ls">s</span><span class="le">e</span><span class="lc">C</span><span class="la">a</span><span class="lt">t</span>
     </div>
+    <div class="load-sub">✦ T R A D U Ç Õ E S ✦</div>
+    <div class="load-spinner"></div>
   </div>
-
-  <div class="loader-text" style="margin-top:0.5rem;">carregando...</div>
 </div>
 
 <div id="siteBanner" style="width:100%;line-height:0;position:relative;background:#0a0a0f;">
@@ -1915,7 +1801,7 @@
     try {
       console.log('[RoseCat] Carregando do Supabase...');
       const { data: rows, error } = await supa.from('mangas').select('data').order('updated_at', { ascending: true });
-      if (error) { console.error('[RoseCat] Erro ao carregar mangas:', error); return false; }
+      if (error) { console.error('[RoseCat] Erro ao carregar mangas:', JSON.stringify(error)); return false; }
       if (!rows || rows.length === 0) { console.log('[RoseCat] Nenhum manga no Supabase ainda.'); return false; }
       console.log('[RoseCat] Carregados', rows.length, 'mangas do Supabase!');
 
