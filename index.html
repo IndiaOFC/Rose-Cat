@@ -2941,15 +2941,28 @@
   // Try Supabase first, fallback to localStorage
   async function initApp() {
     if (supaReady) {
-      // Always try Supabase first - clear any stale local data
       const loaded = await loadFromSupabase();
       if (loaded) {
         renderGrid(mangas);
         buildGenreList();
         return;
       }
+      // Supabase empty - check if localStorage has data to migrate
+      try {
+        const local = JSON.parse(localStorage.getItem('mangas') || 'null');
+        if (local && local.length > 0) {
+          console.log('[RoseCat] Migrando dados locais para Supabase...');
+          mangas = local;
+          await restorePdfs();
+          await syncToSupabase();
+          console.log('[RoseCat] Migração concluída!');
+          renderGrid(mangas);
+          buildGenreList();
+          return;
+        }
+      } catch(e) {}
     }
-    // Fallback: load from localStorage if Supabase unavailable
+    // Fallback: local data only
     try {
       const local = JSON.parse(localStorage.getItem('mangas') || 'null');
       if (local && local.length > 0) mangas = local;
