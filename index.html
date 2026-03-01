@@ -2672,11 +2672,12 @@
         if (supaReady) {
           pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">⏳</div><p>Buscando páginas do servidor...<br><small style="opacity:0.5;font-size:0.7rem;">Primeira vez pode demorar um pouco</small></p></div>';
           try {
-            const { data: row } = await supa.from('pages').select('data').eq('key', p.key).single();
+            const { data: row, error } = await supa.from('pages').select('data').eq('key', p.key).maybeSingle();
             if (row && row.data) {
               await savePdf(p.key, row.data); // cache locally
               return row.data;
             }
+            if (error) console.warn('[RoseCat] Supabase page fetch error:', p.key, error.message);
           } catch(e) { console.warn('[RoseCat] Supabase page fetch fail:', p.key, e); }
         }
         return null;
@@ -2686,7 +2687,7 @@
       Promise.all(promises).then(function(srcs) {
         srcs = srcs.filter(Boolean);
         if (srcs.length === 0) {
-          pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">📄</div><p>Nenhuma página encontrada.<br><small style="opacity:0.5;font-size:0.7rem;">Use ↑ SYNC em modo ADM para sincronizar.</small></p></div>';
+          pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">📡</div><p style="font-size:0.85rem;">Páginas não encontradas no servidor.<br><span style="opacity:0.6;font-size:0.75rem;">No navegador principal (ADM), clique em <b>↑ SYNC</b> no topo para sincronizar.</span></p></div>';
         } else {
           openPageReader(srcs, title, pdfContent);
         }
