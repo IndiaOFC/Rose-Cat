@@ -3219,60 +3219,55 @@
   }
 
   async function initApp() {
-    // STEP 1: mostrar dados locais IMEDIATAMENTE (sem esperar Supabase)
+    if (supaReady) {
+      // Supabase disponível: busca direto dele (fonte de verdade)
+      try {
+        const { data: rows, error } = await supa.from('mangas').select('data').order('updated_at', { ascending: true });
+
+        if (!error && rows && rows.length > 0) {
+          // Carregar capas do Supabase
+          const { data: pageRows } = await supa.from('pages').select('key, data');
+          if (pageRows) for (const p of pageRows) await savePdf(p.key, p.data);
+
+          mangas = rows.map(r => r.data);
+          for (const m of mangas) {
+            if (m.cover && m.cover.startsWith('__idb__')) {
+              const d = await getPdf(m.cover.replace('__idb__',''));
+              if (d) m.cover = d;
+            }
+          }
+          // Salva cache local atualizado
+          try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
+          console.log('[RoseCat] Carregado do Supabase:', mangas.length);
+          hideLoading(); renderGrid(mangas); buildGenreList();
+          return;
+
+        } else if (!error && rows && rows.length === 0) {
+          // Supabase vazio - migrar localStorage se houver dados
+          const local = JSON.parse(localStorage.getItem('mangas') || 'null');
+          if (local && local.length > 0 && localStorage.getItem('__migrated__') !== '1') {
+            mangas = local;
+            await restorePdfs();
+            await syncToSupabase();
+            localStorage.setItem('__migrated__', '1');
+            console.log('[RoseCat] Migrado para Supabase:', mangas.length);
+          }
+          try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
+          hideLoading(); renderGrid(mangas); buildGenreList();
+          return;
+        }
+      } catch(e) {
+        console.warn('[RoseCat] Supabase erro, usando local:', e);
+      }
+    }
+
+    // Fallback: sem Supabase, usa localStorage
     try {
       const local = JSON.parse(localStorage.getItem('mangas') || 'null');
       if (local && local.length > 0) mangas = local;
     } catch(e) {}
     await restorePdfs();
-    hideLoading();
-    renderGrid(mangas);
-    buildGenreList();
-
-    // STEP 2: buscar Supabase em background (sem travar a tela)
-    if (!supaReady) return;
-    try {
-      console.log('[RoseCat] Atualizando do Supabase em background...');
-      const { data: rows, error } = await supa.from('mangas').select('data').order('updated_at', { ascending: true });
-      if (error || !rows || rows.length === 0) {
-        // Supabase vazio - migrar dados locais se houver
-        const alreadyMigrated = localStorage.getItem('__migrated__') === '1';
-        if (!alreadyMigrated && mangas.length > 0) {
-          console.log('[RoseCat] Migrando para Supabase...');
-          await syncToSupabase();
-          localStorage.removeItem('mangas');
-          localStorage.setItem('__migrated__', '1');
-          console.log('[RoseCat] Migração concluída!');
-        }
-        return;
-      }
-
-      // Carregar páginas do Supabase
-      const { data: pageRows } = await supa.from('pages').select('key, data');
-      if (pageRows) {
-        for (const p of pageRows) await savePdf(p.key, p.data);
-      }
-
-      // Atualizar mangas com dados do Supabase
-      const loaded = rows.map(r => r.data);
-      // Restaurar capas
-      for (const m of loaded) {
-        if (m.cover && m.cover.startsWith('__idb__')) {
-          const key = m.cover.replace('__idb__', '');
-          const data = await getPdf(key);
-          if (data) m.cover = data;
-        }
-      }
-
-      // Supabase é a fonte de verdade - SEMPRE sobrescreve localStorage
-      mangas = loaded;
-      try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
-      console.log('[RoseCat] Sincronizado! Total:', mangas.length);
-      renderGrid(mangas);
-      buildGenreList();
-    } catch(e) {
-      console.warn('[RoseCat] Background sync erro:', e);
-    }
+    hideLoading(); renderGrid(mangas); buildGenreList();
   }
   initApp();
 </script>
