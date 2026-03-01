@@ -3149,7 +3149,7 @@
       else console.log('[RoseCat] Deletado:', sid);
 
       // Step 2: force-sync entire current state (handles edge cases)
-      await forceSyncAllToSupabase();
+      await forceSyncAllToSupabase(sid);
     }
 
     save();
@@ -3157,33 +3157,29 @@
     applyFilters();
   }
 
-  // Wipes Supabase mangas table and rewrites from current local state
-  async function forceSyncAllToSupabase() {
+  // Fast sync: delete specific ID + upsert remaining in parallel
+  async function forceSyncAllToSupabase(deletedId) {
     if (!supaReady) return;
     try {
-      const currentIds = mangas.map(m => String(m.id));
+      const ops = [];
 
-      // Delete ALL rows not in current list (including just-deleted)
-      const { data: remote } = await supa.from('mangas').select('id');
-      if (remote) {
-        for (const row of remote) {
-          if (!currentIds.includes(row.id)) {
-            await supa.from('mangas').delete().eq('id', row.id);
-            console.log('[RoseCat] Forçado deletar remoto:', row.id);
-          }
-        }
+      // Delete the specific manga (already done before, but confirm)
+      if (deletedId) {
+        ops.push(supa.from('mangas').delete().eq('id', String(deletedId)));
       }
 
-      // Upsert current mangas
+      // Upsert all current mangas in parallel
       for (const m of mangas) {
         const mCopy = Object.assign({}, m);
         if (mCopy.cover && mCopy.cover.startsWith('data:')) {
           const covKey = 'cover_' + m.id;
-          await supa.from('pages').upsert({ key: covKey, data: mCopy.cover });
           mCopy.cover = '__idb__' + covKey;
+          ops.push(supa.from('pages').upsert({ key: covKey, data: m.cover }));
         }
-        await supa.from('mangas').upsert({ id: String(m.id), data: mCopy, updated_at: new Date().toISOString() });
+        ops.push(supa.from('mangas').upsert({ id: String(m.id), data: mCopy, updated_at: new Date().toISOString() }));
       }
+
+      await Promise.all(ops);
       console.log('[RoseCat] Sync forçado concluído. Total:', mangas.length);
     } catch(e) {
       console.error('[RoseCat] forceSyncAllToSupabase erro:', e);
