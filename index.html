@@ -1512,7 +1512,107 @@
   <p>翻訳 TRANSLATIONS · feito com <span>♥</span> · todas as obras pertencem a seus criadores</p>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+
+  // ── SUPABASE CONFIG ────────────────────────────────────────────────────────
+  const SUPA_URL = 'https://oiawkaxvvhyltmwqjdsi.supabase.co';
+  const SUPA_KEY = 'sb_publishable_qaroamgGQ5Ar25avB6UoXw_gQCsjQzd';
+  let supa = null;
+  let supaReady = false;
+
+  function initSupabase() {
+    if (!SUPA_URL || SUPA_URL.includes('COLE_SUA')) return;
+    try {
+      supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+      supaReady = true;
+      console.log('Supabase conectado!');
+    } catch(e) {
+      console.warn('Supabase erro:', e);
+    }
+  }
+
+  // Save: localStorage (fast) + Supabase (sync)
+  async function syncToSupabase() {
+    if (!supaReady) return;
+    try {
+      // Save mangas metadata (strip large base64)
+      const stripped = mangas.map(m => {
+        const mCopy = Object.assign({}, m);
+        mCopy.chapters = m.chapters.map((ch, ci) => {
+          const chCopy = Object.assign({}, ch);
+          if (ch.pdf && (ch.pdf.startsWith('data:') || ch.pdf.startsWith('__pages__') || ch.pdf.startsWith('__idb__'))) {
+            chCopy._hasPdf = true; // flag that PDF exists in IDB
+          }
+          return chCopy;
+        });
+        if (m.cover && m.cover.startsWith('data:')) {
+          mCopy.cover = '__large__';
+        }
+        return mCopy;
+      });
+
+      for (const m of stripped) {
+        await supa.from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
+      }
+
+      // Save pages to Supabase storage
+      await syncPagesToSupabase();
+    } catch(e) {
+      console.warn('Supabase sync error:', e);
+    }
+  }
+
+  async function syncPagesToSupabase() {
+    if (!supaReady) return;
+    try {
+      // Get all IDB keys
+      const db = await openPdfDB();
+      const tx = db.transaction('pdfs', 'readonly');
+      const store = tx.objectStore('pdfs');
+      const keys = await new Promise((res, rej) => {
+        const req = store.getAllKeys();
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
+
+      for (const key of keys) {
+        const data = await getPdf(key);
+        if (data) {
+          await supa.from('pages').upsert({ key, data });
+        }
+      }
+    } catch(e) {
+      console.warn('Pages sync error:', e);
+    }
+  }
+
+  async function loadFromSupabase() {
+    if (!supaReady) return false;
+    try {
+      const { data: rows, error } = await supa.from('mangas').select('data').order('updated_at', { ascending: true });
+      if (error || !rows || rows.length === 0) return false;
+
+      const loaded = rows.map(r => r.data);
+
+      // Load pages from Supabase into IDB
+      const { data: pageRows } = await supa.from('pages').select('key, data');
+      if (pageRows) {
+        for (const p of pageRows) {
+          await savePdf(p.key, p.data);
+        }
+      }
+
+      mangas = loaded;
+      save(); // cache locally too
+      return true;
+    } catch(e) {
+      console.warn('Load from Supabase error:', e);
+      return false;
+    }
+  }
+
+
   // ── DATA ──────────────────────────────────────────────────────────────────
   let mangas = JSON.parse(localStorage.getItem('mangas') || 'null') || [
     {
@@ -1618,6 +1718,8 @@
       } catch(e) {
         console.error('localStorage still full:', e);
       }
+      // Sync to Supabase in background
+      syncToSupabase();
     });
   }
 
@@ -2820,11 +2922,26 @@
   });
   if (changed) save();
 
-  // Restore PDFs from IndexedDB then render
-  restorePdfs().then(() => {
+  // Init Supabase
+  initSupabase();
+
+  // Try Supabase first, fallback to localStorage
+  async function initApp() {
+    if (supaReady) {
+      const loaded = await loadFromSupabase();
+      if (loaded) {
+        await restorePdfs();
+        renderGrid(mangas);
+        buildGenreList();
+        return;
+      }
+    }
+    // Fallback: local data
+    await restorePdfs();
     renderGrid(mangas);
     buildGenreList();
-  });
+  }
+  initApp();
 </script>
 
 
