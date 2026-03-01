@@ -1559,11 +1559,20 @@
       });
 
       await Promise.all(pdfPromisesSync);
-      // Delete ALL mangas from Supabase then re-insert current state
-      // This ensures deleted mangas are removed everywhere
-      await supa.from('mangas').delete().neq('id', '__never__');
+      // Upsert current mangas
       for (const m of stripped) {
-        await supa.from('mangas').insert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
+        await supa.from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
+      }
+      // Delete any mangas in Supabase that are no longer in local list
+      const currentIds = stripped.map(m => String(m.id));
+      const { data: remoteRows } = await supa.from('mangas').select('id');
+      if (remoteRows) {
+        for (const row of remoteRows) {
+          if (!currentIds.includes(row.id)) {
+            await supa.from('mangas').delete().eq('id', row.id);
+            console.log('[RoseCat] Removido do Supabase:', row.id);
+          }
+        }
       }
 
       // Save pages to Supabase storage
@@ -2894,10 +2903,16 @@
   }
 
 
-  function deleteMangaFromDetail() {
+  async function deleteMangaFromDetail() {
     if (!isAdm) return;
     const sid = String(currentMangaId);
     mangas = mangas.filter(x => String(x.id) !== sid);
+    // Delete from Supabase immediately and explicitly
+    if (supaReady) {
+      const { error } = await supa.from('mangas').delete().eq('id', sid);
+      if (error) console.error('[RoseCat] Erro ao deletar do Supabase:', error);
+      else console.log('[RoseCat] Deletado do Supabase:', sid);
+    }
     save();
     closeDetailModal();
     applyFilters();
