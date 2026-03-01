@@ -421,6 +421,7 @@
     padding: 2rem;
     overflow-y: auto;
     backdrop-filter: blur(4px);
+    box-sizing: border-box;
   }
 
   .modal-backdrop.open {
@@ -434,6 +435,7 @@
     max-width: 700px;
     position: relative;
     animation: modalIn 0.25s ease-out;
+    overflow: hidden;
   }
 
   @keyframes modalIn {
@@ -482,6 +484,9 @@
 
   .modal-meta {
     flex: 1;
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
 
   .modal-title {
@@ -1350,6 +1355,53 @@
       font-size: 0.55rem;
       padding: 0.3rem;
     }
+
+    /* Modal mobile fixes */
+    .modal-backdrop {
+      padding: 0.5rem;
+      align-items: flex-start;
+    }
+    .modal {
+      max-width: 100%;
+      width: 100%;
+      max-height: 95vh;
+      overflow-y: auto;
+      border-radius: 0;
+    }
+    .modal-header {
+      padding: 1rem 0.75rem 0;
+      gap: 0.6rem;
+    }
+    .modal-cover {
+      width: 75px;
+      min-width: 75px;
+    }
+    .modal-title {
+      font-size: 0.8rem !important;
+      line-height: 1.3;
+    }
+    .modal-subtitle {
+      font-size: 0.75rem;
+    }
+    .modal-body {
+      padding: 0.6rem 0.75rem 0.75rem;
+    }
+    .modal-description {
+      font-size: 0.82rem;
+    }
+    #modalInfoGrid {
+      font-size: 0.7rem;
+    }
+    .modal-tags .tag {
+      font-size: 0.5rem;
+      padding: 0.1rem 0.3rem;
+    }
+    .add-modal {
+      max-width: 100%;
+      width: 100%;
+      max-height: 95vh;
+      overflow-y: auto;
+    }
   }
 
 
@@ -1635,6 +1687,7 @@
       <input type="text" id="searchInput" placeholder="buscar..." oninput="filterMangas()">
     </div>
     <div style="display:flex;align-items:center;gap:0.6rem;">
+      <button id="admResyncBtn" onclick="forceResyncPages()" style="display:none;background:none;border:1px solid rgba(114,137,218,0.5);color:#7289da;font-family:'Share Tech Mono',monospace;font-size:0.6rem;padding:0.3rem 0.6rem;cursor:pointer;letter-spacing:0.1em;" title="Sincronizar páginas com Supabase">↑ SYNC</button>
       <button id="admAddBtn" onclick="openAddModal()" style="display:none;width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(232,74,106,0.18),rgba(155,89,182,0.1) 60%,rgba(74,127,212,0.08));border:1.5px solid rgba(232,74,106,0.6);color:#e84a6a;font-size:1.25rem;line-height:1;cursor:pointer;box-shadow:0 0 10px rgba(200,39,58,0.45),0 0 22px rgba(155,89,182,0.25),0 0 38px rgba(74,127,212,0.15),inset 0 0 8px rgba(232,74,106,0.1);transition:box-shadow 0.3s,transform 0.2s;font-family:'Share Tech Mono',monospace;padding:0;display:none;justify-content:center;align-items:center;" onmouseover="this.style.boxShadow='0 0 16px rgba(200,39,58,0.7),0 0 32px rgba(155,89,182,0.4),0 0 50px rgba(74,127,212,0.25)';this.style.transform='scale(1.1)'" onmouseout="this.style.boxShadow='0 0 10px rgba(200,39,58,0.45),0 0 22px rgba(155,89,182,0.25),0 0 38px rgba(74,127,212,0.15)';this.style.transform='scale(1)'">＋</button>
       <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn" aria-label="Menu">
         <span></span><span></span><span></span>
@@ -1922,46 +1975,51 @@
     if (!supaReady) return;
     try {
       console.log('[RoseCat] Salvando no Supabase...');
+      const client = supaWrite || supa;
       const pdfPromisesSync = [];
-      // Save mangas metadata (strip large base64)
+
+      // Save mangas metadata (strip large base64 but keep __pages__ refs)
       const stripped = mangas.map(m => {
         const mCopy = Object.assign({}, m);
         mCopy.chapters = m.chapters.map((ch, ci) => {
           const chCopy = Object.assign({}, ch);
-          if (ch.pdf && (ch.pdf.startsWith('data:') || ch.pdf.startsWith('__pages__') || ch.pdf.startsWith('__idb__'))) {
-            chCopy._hasPdf = true; // flag that PDF exists in IDB
-          }
+          // Keep __pages__ and __idb__ refs as-is so other browsers can restore from pages table
           return chCopy;
         });
         if (m.cover && m.cover.startsWith('data:')) {
           const covKey = 'cover_' + m.id;
-          pdfPromisesSync.push(savePdf(covKey, m.cover).then(() =>
-            db().from('pages').upsert({ key: covKey, data: m.cover })
-          ));
+          pdfPromisesSync.push(
+            savePdf(covKey, m.cover).then(() =>
+              client.from('pages').upsert({ key: covKey, data: m.cover })
+            )
+          );
           mCopy.cover = '__idb__' + covKey;
         }
         return mCopy;
       });
 
       await Promise.all(pdfPromisesSync);
+
+      // Upload all IDB pages to Supabase FIRST
+      await syncPagesToSupabase();
+
       // Upsert current mangas
       for (const m of stripped) {
-        await db().from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
+        await client.from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
       }
+
       // Delete any mangas in Supabase that are no longer in local list
       const currentIds = stripped.map(m => String(m.id));
-      const { data: remoteRows } = await db().from('mangas').select('id');
+      const { data: remoteRows } = await client.from('mangas').select('id');
       if (remoteRows) {
         for (const row of remoteRows) {
           if (!currentIds.includes(row.id)) {
-            await db().from('mangas').delete().eq('id', row.id);
+            await client.from('mangas').delete().eq('id', row.id);
             console.log('[RoseCat] Removido do Supabase:', row.id);
           }
         }
       }
 
-      // Save pages to Supabase storage
-      await syncPagesToSupabase();
     } catch(e) {
       console.warn('Supabase sync error:', e);
     }
@@ -1971,8 +2029,8 @@
     if (!supaReady) return;
     try {
       // Get all IDB keys
-      const db = await openPdfDB();
-      const tx = db.transaction('pdfs', 'readonly');
+      const idb = await openPdfDB();
+      const tx = idb.transaction('pdfs', 'readonly');
       const store = tx.objectStore('pdfs');
       const keys = await new Promise((res, rej) => {
         const req = store.getAllKeys();
@@ -1980,10 +2038,12 @@
         req.onerror = () => rej(req.error);
       });
 
+      // Use supaWrite (ADM) for uploading, fallback to supa
+      const client = (supaWrite || supa);
       for (const key of keys) {
         const data = await getPdf(key);
         if (data) {
-          await supa.from('pages').upsert({ key, data });
+          await client.from('pages').upsert({ key, data });
         }
       }
     } catch(e) {
@@ -2002,18 +2062,19 @@
 
       const loaded = rows.map(r => r.data);
 
-      // Load pages from Supabase into IDB
+      // Load ALL pages from Supabase into local IDB first
       const { data: pageRows } = await supa.from('pages').select('key, data');
-      if (pageRows) {
+      if (pageRows && pageRows.length > 0) {
+        console.log('[RoseCat] Carregando', pageRows.length, 'páginas do Supabase...');
         for (const p of pageRows) {
           await savePdf(p.key, p.data);
         }
+        console.log('[RoseCat] Páginas carregadas no IDB!');
       }
 
       mangas = loaded;
-      // Restore covers from IDB (already loaded from pages table above)
-      await restorePdfs();
-      // Now restore __idb__ covers
+
+      // Restore __idb__ covers
       for (const m of mangas) {
         if (m.cover && m.cover.startsWith('__idb__')) {
           const key = m.cover.replace('__idb__', '');
@@ -2021,6 +2082,7 @@
           if (data) m.cover = data;
         }
       }
+
       // Clear stale localStorage and write fresh data
       try {
         localStorage.removeItem('mangas');
@@ -2451,6 +2513,20 @@
     if (admDelBtn) admDelBtn.style.display = isAdm ? 'block' : 'none';
     const modalEditBtn = document.getElementById('modalEditBtn');
     if (modalEditBtn) modalEditBtn.style.display = isAdm ? 'block' : 'none';
+  }
+
+  async function forceResyncPages() {
+    const btn = document.getElementById('admResyncBtn');
+    if (btn) { btn.textContent = '⏳ ...'; btn.disabled = true; }
+    try {
+      await syncToSupabase();
+      if (btn) { btn.textContent = '✓ SYNC'; btn.style.color = '#5cba7a'; btn.style.borderColor = '#5cba7a'; }
+      setTimeout(() => {
+        if (btn) { btn.textContent = '↑ SYNC'; btn.style.color = '#7289da'; btn.style.borderColor = 'rgba(114,137,218,0.5)'; btn.disabled = false; }
+      }, 3000);
+    } catch(e) {
+      if (btn) { btn.textContent = '✕ ERR'; btn.style.color = '#c8273a'; btn.disabled = false; }
+    }
   }
 
   function openEditFromDetail() {
@@ -3350,6 +3426,9 @@
         document.getElementById('admCodeInput').value = '';
         document.getElementById('admError').style.display = 'none';
         const logo = document.querySelector('.logo');
+        // Show resync button for ADM
+        const resyncBtn = document.getElementById('admResyncBtn');
+        if (resyncBtn) resyncBtn.style.display = 'block';
         // neon apenas no botão +Novo
         applyFilters(); // re-render cards with ADM buttons
       } else {
