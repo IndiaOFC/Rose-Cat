@@ -1208,6 +1208,73 @@
     user-select: none;
   }
 
+
+  /* ── MOBILE ──────────────────────────────────────────────────────────── */
+  @media (max-width: 600px) {
+
+    /* Grid: 2 cards per row on mobile */
+    .manga-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.6rem;
+    }
+
+    /* Card cover shorter */
+    .manga-cover {
+      height: 140px;
+    }
+
+    /* Card text smaller */
+    .manga-title {
+      font-size: 0.7rem;
+    }
+    .manga-meta {
+      font-size: 0.6rem;
+    }
+
+    /* Header compact */
+    header {
+      padding: 0.5rem 0.75rem;
+    }
+
+    /* Logo image smaller */
+    .logo img {
+      width: 44px !important;
+      height: 44px !important;
+    }
+
+    /* RoseCat text smaller on mobile */
+    .logo > span {
+      font-size: 1.3rem !important;
+    }
+
+    /* Search bar smaller */
+    .search-wrapper {
+      max-width: 160px;
+    }
+
+    /* Main padding */
+    main {
+      padding: 0.75rem;
+    }
+
+    /* Section title smaller */
+    .section-title {
+      font-size: 0.7rem;
+    }
+
+    /* Tags on cards */
+    .tag {
+      font-size: 0.5rem;
+      padding: 0.1rem 0.3rem;
+    }
+
+    /* Overlay buttons compact */
+    .overlay-btn {
+      font-size: 0.55rem;
+      padding: 0.3rem;
+    }
+  }
+
 </style>
 </head>
 <body>
