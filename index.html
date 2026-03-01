@@ -3141,15 +3141,53 @@
     if (!isAdm) return;
     const sid = String(currentMangaId);
     mangas = mangas.filter(x => String(x.id) !== sid);
-    // Delete from Supabase immediately and explicitly
+
     if (supaReady) {
+      // Step 1: delete this specific manga
       const { error } = await supa.from('mangas').delete().eq('id', sid);
-      if (error) console.error('[RoseCat] Erro ao deletar do Supabase:', error);
-      else console.log('[RoseCat] Deletado do Supabase:', sid);
+      if (error) console.error('[RoseCat] Erro ao deletar:', JSON.stringify(error));
+      else console.log('[RoseCat] Deletado:', sid);
+
+      // Step 2: force-sync entire current state (handles edge cases)
+      await forceSyncAllToSupabase();
     }
+
     save();
     closeDetailModal();
     applyFilters();
+  }
+
+  // Wipes Supabase mangas table and rewrites from current local state
+  async function forceSyncAllToSupabase() {
+    if (!supaReady) return;
+    try {
+      const currentIds = mangas.map(m => String(m.id));
+
+      // Delete ALL rows not in current list (including just-deleted)
+      const { data: remote } = await supa.from('mangas').select('id');
+      if (remote) {
+        for (const row of remote) {
+          if (!currentIds.includes(row.id)) {
+            await supa.from('mangas').delete().eq('id', row.id);
+            console.log('[RoseCat] Forçado deletar remoto:', row.id);
+          }
+        }
+      }
+
+      // Upsert current mangas
+      for (const m of mangas) {
+        const mCopy = Object.assign({}, m);
+        if (mCopy.cover && mCopy.cover.startsWith('data:')) {
+          const covKey = 'cover_' + m.id;
+          await supa.from('pages').upsert({ key: covKey, data: mCopy.cover });
+          mCopy.cover = '__idb__' + covKey;
+        }
+        await supa.from('mangas').upsert({ id: String(m.id), data: mCopy, updated_at: new Date().toISOString() });
+      }
+      console.log('[RoseCat] Sync forçado concluído. Total:', mangas.length);
+    } catch(e) {
+      console.error('[RoseCat] forceSyncAllToSupabase erro:', e);
+    }
   }
 
   function rerenderChapters(m) {
