@@ -1512,7 +1512,7 @@
   <p>翻訳 TRANSLATIONS · feito com <span>♥</span> · todas as obras pertencem a seus criadores</p>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 
   // ── SUPABASE CONFIG ────────────────────────────────────────────────────────
@@ -1524,7 +1524,7 @@
   function initSupabase() {
     if (!SUPA_URL || SUPA_URL.includes('COLE_SUA')) return;
     try {
-      supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+      supa = window.supabase.createClient(SUPA_URL, SUPA_KEY);
       supaReady = true;
       console.log('[RoseCat] Supabase conectado!');
     } catch(e) {
