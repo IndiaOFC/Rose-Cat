@@ -1711,16 +1711,29 @@
   let supa = null;
   let supaReady = false;
 
+  const SUPA_ADM_TOKEN = 'rosecat_adm_w_2024';
+  let supaRead = null; // cliente público (só leitura)
+  let supaWrite = null; // cliente ADM (escrita)
+
   function initSupabase() {
     if (!SUPA_URL || SUPA_URL.includes('COLE_SUA')) return;
     try {
-      supa = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+      // Cliente de leitura (público)
+      supaRead = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+      // Cliente de escrita ADM (com token secreto no header)
+      supaWrite = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+        global: { headers: { 'x-adm-token': SUPA_ADM_TOKEN } }
+      });
+      supa = supaRead; // padrão: leitura
       supaReady = true;
       console.log('[RoseCat] Supabase conectado!');
     } catch(e) {
       console.error('[RoseCat] Supabase erro ao iniciar:', e);
     }
   }
+
+  // Retorna cliente correto baseado em se é ADM ou não
+  function db() { return (isAdm && supaWrite) ? supaWrite : supaRead; }
 
   // Save: localStorage (fast) + Supabase (sync)
   async function syncToSupabase() {
@@ -1741,7 +1754,7 @@
         if (m.cover && m.cover.startsWith('data:')) {
           const covKey = 'cover_' + m.id;
           pdfPromisesSync.push(savePdf(covKey, m.cover).then(() =>
-            supa.from('pages').upsert({ key: covKey, data: m.cover })
+            db().from('pages').upsert({ key: covKey, data: m.cover })
           ));
           mCopy.cover = '__idb__' + covKey;
         }
@@ -1751,15 +1764,15 @@
       await Promise.all(pdfPromisesSync);
       // Upsert current mangas
       for (const m of stripped) {
-        await supa.from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
+        await db().from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
       }
       // Delete any mangas in Supabase that are no longer in local list
       const currentIds = stripped.map(m => String(m.id));
-      const { data: remoteRows } = await supa.from('mangas').select('id');
+      const { data: remoteRows } = await db().from('mangas').select('id');
       if (remoteRows) {
         for (const row of remoteRows) {
           if (!currentIds.includes(row.id)) {
-            await supa.from('mangas').delete().eq('id', row.id);
+            await db().from('mangas').delete().eq('id', row.id);
             console.log('[RoseCat] Removido do Supabase:', row.id);
           }
         }
@@ -3145,12 +3158,12 @@
 
     if (supaReady) {
       // Deletar do Supabase e aguardar confirmação
-      await supa.from('mangas').delete().eq('id', sid);
+      await db().from('mangas').delete().eq('id', sid);
       // Upsert restantes em paralelo
       const ops = mangas.map(m => {
         const mCopy = Object.assign({}, m);
         if (mCopy.cover && mCopy.cover.startsWith('data:')) mCopy.cover = '__idb__cover_' + m.id;
-        return supa.from('mangas').upsert({ id: String(m.id), data: mCopy, updated_at: new Date().toISOString() });
+        return db().from('mangas').upsert({ id: String(m.id), data: mCopy, updated_at: new Date().toISOString() });
       });
       await Promise.all(ops);
       console.log('[RoseCat] Deletado e sincronizado. Total:', mangas.length);
@@ -3168,7 +3181,7 @@
 
       // Delete the specific manga (already done before, but confirm)
       if (deletedId) {
-        ops.push(supa.from('mangas').delete().eq('id', String(deletedId)));
+        ops.push(db().from('mangas').delete().eq('id', String(deletedId)));
       }
 
       // Upsert all current mangas in parallel
@@ -3177,9 +3190,9 @@
         if (mCopy.cover && mCopy.cover.startsWith('data:')) {
           const covKey = 'cover_' + m.id;
           mCopy.cover = '__idb__' + covKey;
-          ops.push(supa.from('pages').upsert({ key: covKey, data: m.cover }));
+          ops.push(db().from('pages').upsert({ key: covKey, data: m.cover }));
         }
-        ops.push(supa.from('mangas').upsert({ id: String(m.id), data: mCopy, updated_at: new Date().toISOString() }));
+        ops.push(db().from('mangas').upsert({ id: String(m.id), data: mCopy, updated_at: new Date().toISOString() }));
       }
 
       await Promise.all(ops);
