@@ -3140,17 +3140,22 @@
     const sid = String(currentMangaId);
     mangas = mangas.filter(x => String(x.id) !== sid);
 
-    if (supaReady) {
-      // Step 1: delete this specific manga
-      const { error } = await supa.from('mangas').delete().eq('id', sid);
-      if (error) console.error('[RoseCat] Erro ao deletar:', JSON.stringify(error));
-      else console.log('[RoseCat] Deletado:', sid);
+    // Salva localStorage IMEDIATAMENTE antes de qualquer coisa
+    try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
 
-      // Step 2: force-sync entire current state (handles edge cases)
-      await forceSyncAllToSupabase(sid);
+    if (supaReady) {
+      // Deletar do Supabase e aguardar confirmação
+      await supa.from('mangas').delete().eq('id', sid);
+      // Upsert restantes em paralelo
+      const ops = mangas.map(m => {
+        const mCopy = Object.assign({}, m);
+        if (mCopy.cover && mCopy.cover.startsWith('data:')) mCopy.cover = '__idb__cover_' + m.id;
+        return supa.from('mangas').upsert({ id: String(m.id), data: mCopy, updated_at: new Date().toISOString() });
+      });
+      await Promise.all(ops);
+      console.log('[RoseCat] Deletado e sincronizado. Total:', mangas.length);
     }
 
-    save();
     closeDetailModal();
     applyFilters();
   }
@@ -3259,19 +3264,12 @@
         }
       }
 
-      // Só atualiza a tela se os dados forem diferentes
-      if (JSON.stringify(loaded.map(m=>m.id).sort()) !== JSON.stringify(mangas.map(m=>m.id).sort())) {
-        console.log('[RoseCat] Dados atualizados do Supabase!');
-        mangas = loaded;
-        try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
-        renderGrid(mangas);
-        buildGenreList();
-      } else {
-        console.log('[RoseCat] Dados já sincronizados!');
-        // Atualiza localStorage com versão mais recente
-        mangas = loaded;
-        try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
-      }
+      // Supabase é a fonte de verdade - SEMPRE sobrescreve localStorage
+      mangas = loaded;
+      try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
+      console.log('[RoseCat] Sincronizado! Total:', mangas.length);
+      renderGrid(mangas);
+      buildGenreList();
     } catch(e) {
       console.warn('[RoseCat] Background sync erro:', e);
     }
