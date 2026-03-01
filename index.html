@@ -1343,6 +1343,19 @@
     <div class="sidebar-label">Gêneros</div>
     <div id="sidebarGenres" class="sidebar-genres"></div>
   </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Sincronizar</div>
+    <div class="sidebar-sublabel" style="margin-bottom:0.5rem;">Exporte do PC e importe no celular</div>
+    <button class="sidebar-sub" onclick="exportData()" style="color:#c9a84c;border:1px solid #c9a84c33;margin-bottom:0.4rem;">⬇ Exportar dados</button>
+    <label class="sidebar-sub" style="cursor:pointer;display:block;text-align:left;">
+      ⬆ Importar dados
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+    </label>
+    <div id="syncMsg" style="font-size:0.6rem;color:var(--gold);margin-top:0.4rem;display:none;"></div>
+  </div>
 </aside>
 
 
@@ -2566,6 +2579,90 @@
     input.value = '';
     renderPagesPreview(newChPages, 'newChPagesPreview');
     syncPagesHidden(newChPages);
+  }
+
+
+
+  async function exportData() {
+    // Gather all manga metadata
+    const exportObj = { version: 1, mangas: JSON.parse(JSON.stringify(mangas)), pages: {} };
+
+    // Also gather pages from IndexedDB
+    const allPromises = [];
+    mangas.forEach(function(m) {
+      m.chapters.forEach(function(ch) {
+        if (ch.pdf && ch.pdf.startsWith('__pages__')) {
+          let defs = [];
+          try { defs = JSON.parse(ch.pdf.replace('__pages__', '')); } catch(e) {}
+          defs.forEach(function(p) {
+            if (p.type === 'idb') {
+              allPromises.push(
+                getPdf(p.key).then(function(data) {
+                  if (data) exportObj.pages[p.key] = data;
+                })
+              );
+            }
+          });
+        }
+        if (ch.pdf && ch.pdf.startsWith('__idb__')) {
+          const key = ch.pdf.replace('__idb__', '');
+          allPromises.push(getPdf(key).then(function(data) {
+            if (data) exportObj.pages[key] = data;
+          }));
+        }
+      });
+      if (m.cover && m.cover.startsWith('__idb__')) {
+        const key = m.cover.replace('__idb__', '');
+        allPromises.push(getPdf(key).then(function(data) {
+          if (data) exportObj.pages[key] = data;
+        }));
+      }
+    });
+
+    await Promise.all(allPromises);
+
+    const blob = new Blob([JSON.stringify(exportObj)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'rosecat-backup.json';
+    a.click();
+    const msg = document.getElementById('syncMsg');
+    if (msg) { msg.textContent = '✓ Exportado!'; msg.style.display = 'block'; setTimeout(() => msg.style.display='none', 3000); }
+  }
+
+  function importData(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      try {
+        const obj = JSON.parse(e.target.result);
+        if (!obj.mangas) throw new Error('Arquivo inválido');
+
+        // Restore pages to IndexedDB
+        if (obj.pages) {
+          const saves = Object.entries(obj.pages).map(function([key, data]) {
+            return savePdf(key, data);
+          });
+          await Promise.all(saves);
+        }
+
+        // Restore mangas
+        mangas = obj.mangas;
+        save();
+        await restorePdfs();
+        applyFilters();
+        closeSidebar();
+
+        const msg = document.getElementById('syncMsg');
+        if (msg) { msg.textContent = '✓ Importado! ' + mangas.length + ' títulos.'; msg.style.display = 'block'; setTimeout(() => msg.style.display='none', 4000); }
+      } catch(err) {
+        const msg = document.getElementById('syncMsg');
+        if (msg) { msg.textContent = '✕ Erro: ' + err.message; msg.style.display = 'block'; msg.style.color = '#c8273a'; }
+      }
+    };
+    reader.readAsText(file);
+    input.value = '';
   }
 
 
