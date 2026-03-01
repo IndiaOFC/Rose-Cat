@@ -1167,10 +1167,15 @@
     transition: all 0.2s;
     text-transform: uppercase;
   }
-  .genre-tag:hover, .genre-tag.active {
-    border-color: var(--gold-dim);
-    color: var(--gold);
-    background: rgba(201,168,76,0.08);
+  .genre-tag:hover {
+    border-color: rgba(200,39,58,0.6);
+    color: #e05060;
+    background: rgba(200,39,58,0.08);
+  }
+  .genre-tag.active {
+    border-color: var(--red);
+    color: #fff;
+    background: rgba(200,39,58,0.22);
   }
 
 
@@ -1793,12 +1798,14 @@
   <div class="watermark">RoseCat</div>
 
   <!-- RECENTES -->
+  <div id="recentSection">
   <div class="section-header" style="margin-top:0.5rem">
     <div class="section-title section-title-rgb">Recentes</div>
     <div class="section-line"></div>
   </div>
   <div class="manga-grid" id="recentGrid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:2rem;">
   </div>
+  </div><!-- /recentSection -->
 
   <!-- TRADUÇÕES -->
   <div class="section-header">
@@ -2379,7 +2386,7 @@
   }
 
   let currentStatus = 'all';
-  let currentGenre = null;
+  let currentGenres = new Set();
   let currentTipo = 'all';
 
   function filterByStatus(status, btn) {
@@ -2401,13 +2408,19 @@
     if (currentStatus !== 'all') {
       filtered = filtered.filter(m => m.status === currentStatus);
     }
-    if (currentGenre) {
-      filtered = filtered.filter(m => m.tags.includes(currentGenre));
+    if (currentGenres.size > 0) {
+      filtered = filtered.filter(m => [...currentGenres].every(g => m.tags.includes(g)));
     }
     if (currentTipo !== 'all') {
       filtered = filtered.filter(m => m.tipo === currentTipo);
     }
     renderGrid(filtered);
+
+    // Recentes section: only visible when no status filter active
+    const recentSection = document.getElementById('recentSection');
+    if (recentSection) {
+      recentSection.style.display = (currentStatus === 'all' && currentGenres.size === 0 && currentTipo === 'all' && !q) ? '' : 'none';
+    }
   }
 
   // ── DETAIL MODAL ──────────────────────────────────────────────────────────
@@ -2551,7 +2564,7 @@
     ).join('');
 
     const tagsEl = document.getElementById('modalTags');
-    tagsEl.innerHTML = m.tags.map(t => `<span class="tag">${t}</span>`).join('');
+    tagsEl.innerHTML = m.tags.map(t => `<span class="tag" style="cursor:pointer;" onclick="closeDetailModal();filterByGenreByName('${t}')">${t}</span>`).join('');
 
     // Status badge
     const statusBadge = document.getElementById('modalStatusBadge');
@@ -2971,20 +2984,17 @@
     if (home) home.classList.add('active');
     if (about) about.classList.remove('active');
     applyFilters();
-    closeSidebar();
   }
   function filterByGenre(genre, el) {
-    if (currentGenre === genre) {
-      currentGenre = null;
+    if (currentGenres.has(genre)) {
+      currentGenres.delete(genre);
       el.classList.remove('active');
     } else {
-      currentGenre = genre;
-      document.querySelectorAll('.genre-tag').forEach(t => t.classList.remove('active'));
+      currentGenres.add(genre);
       el.classList.add('active');
     }
     showPage('home');
     applyFilters();
-    closeSidebar();
   }
   function filterByTipo(tipo, el) {
     currentTipo = tipo;
@@ -2995,7 +3005,17 @@
     if (el) el.classList.add('active');
     showPage('home');
     applyFilters();
-    closeSidebar();
+  }
+
+  function filterByGenreByName(genre) {
+    currentGenres.clear();
+    currentGenres.add(genre);
+    // Update genre-tag active state in sidebar
+    document.querySelectorAll('.genre-tag').forEach(t => {
+      t.classList.toggle('active', t.textContent.trim() === genre);
+    });
+    showPage('home');
+    applyFilters();
   }
 
   function buildGenreList() {
