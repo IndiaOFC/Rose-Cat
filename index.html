@@ -1333,80 +1333,148 @@
 <body>
 
 <div id="loadingScreen">
-  <div style="position:relative;width:340px;height:200px;">
-    <svg viewBox="0 0 340 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;overflow:visible;">
+  <div style="position:relative;width:360px;height:220px;">
+    <svg viewBox="0 0 360 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;overflow:visible;">
       <defs>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Metal+Mania&display=swap');
-          .rc-letter { font-family: 'Metal Mania', cursive; font-size: 52px; }
+          .hl-letter { font-family:'Metal Mania',cursive; font-size:54px; }
+          @keyframes petalFall1 { 0%{transform:translate(0,0) rotate(0deg);opacity:0.9} 100%{transform:translate(-18px,60px) rotate(-40deg);opacity:0} }
+          @keyframes petalFall2 { 0%{transform:translate(0,0) rotate(0deg);opacity:0.8} 100%{transform:translate(12px,55px) rotate(30deg);opacity:0} }
+          @keyframes petalFall3 { 0%{transform:translate(0,0) rotate(0deg);opacity:0.7} 100%{transform:translate(-8px,65px) rotate(-20deg);opacity:0} }
+          @keyframes petalFall4 { 0%{transform:translate(0,0) rotate(0deg);opacity:0.9} 100%{transform:translate(20px,50px) rotate(50deg);opacity:0} }
+          .fp1{animation:petalFall1 3s ease-in infinite;}
+          .fp2{animation:petalFall2 3.4s ease-in 0.6s infinite;}
+          .fp3{animation:petalFall3 2.8s ease-in 1.2s infinite;}
+          .fp4{animation:petalFall4 3.2s ease-in 0.3s infinite;}
         </style>
-        <!-- Petal shape reused -->
-        <path id="petal" d="M0,-18 C6,-10 6,0 0,10 C-6,0 -6,-10 0,-18Z"/>
+        <!-- Single petal shape -->
+        <path id="pt" d="M0,0 C3,-12 8,-18 0,-24 C-8,-18 -3,-12 0,0Z"/>
+        <!-- Leaf shape -->
+        <path id="lf" d="M0,0 C-5,-8 -3,-16 0,-20 C3,-16 5,-8 0,0Z"/>
       </defs>
 
-      <!-- Rose petals clustered around center (between s and e, letters 3-4) -->
-      <!-- Rose center approx at x=170, y=100 -->
-      <g transform="translate(170,72)" opacity="0.95">
-        <!-- Outer petals -->
-        <g fill="#c8273a">
-          <use href="#petal" transform="rotate(0)   translate(0,-28) scale(1.6,2.2)"/>
-          <use href="#petal" transform="rotate(45)  translate(0,-28) scale(1.6,2.2)"/>
-          <use href="#petal" transform="rotate(90)  translate(0,-28) scale(1.6,2.2)"/>
-          <use href="#petal" transform="rotate(135) translate(0,-28) scale(1.6,2.2)"/>
-          <use href="#petal" transform="rotate(180) translate(0,-28) scale(1.6,2.2)"/>
-          <use href="#petal" transform="rotate(225) translate(0,-28) scale(1.6,2.2)"/>
-          <use href="#petal" transform="rotate(270) translate(0,-28) scale(1.6,2.2)"/>
-          <use href="#petal" transform="rotate(315) translate(0,-28) scale(1.6,2.2)"/>
-        </g>
-        <!-- Mid petals -->
-        <g fill="#d63a4a">
-          <use href="#petal" transform="rotate(22)  translate(0,-18) scale(1.2,1.7)"/>
-          <use href="#petal" transform="rotate(67)  translate(0,-18) scale(1.2,1.7)"/>
-          <use href="#petal" transform="rotate(112) translate(0,-18) scale(1.2,1.7)"/>
-          <use href="#petal" transform="rotate(157) translate(0,-18) scale(1.2,1.7)"/>
-          <use href="#petal" transform="rotate(202) translate(0,-18) scale(1.2,1.7)"/>
-          <use href="#petal" transform="rotate(247) translate(0,-18) scale(1.2,1.7)"/>
-          <use href="#petal" transform="rotate(292) translate(0,-18) scale(1.2,1.7)"/>
-          <use href="#petal" transform="rotate(337) translate(0,-18) scale(1.2,1.7)"/>
-        </g>
-        <!-- Inner petals -->
-        <g fill="#e84a5a">
-          <use href="#petal" transform="rotate(0)   translate(0,-10) scale(0.9,1.2)"/>
-          <use href="#petal" transform="rotate(60)  translate(0,-10) scale(0.9,1.2)"/>
-          <use href="#petal" transform="rotate(120) translate(0,-10) scale(0.9,1.2)"/>
-          <use href="#petal" transform="rotate(180) translate(0,-10) scale(0.9,1.2)"/>
-          <use href="#petal" transform="rotate(240) translate(0,-10) scale(0.9,1.2)"/>
-          <use href="#petal" transform="rotate(300) translate(0,-10) scale(0.9,1.2)"/>
-        </g>
-        <!-- Rose center -->
-        <circle r="7" fill="#9b1a2a"/>
-        <circle r="3.5" fill="#c8273a"/>
-        <!-- Tiny leaf -->
-        <ellipse cx="30" cy="18" rx="10" ry="5" fill="#2d6e2d" transform="rotate(-30,30,18)"/>
-        <ellipse cx="-32" cy="22" rx="8" ry="4" fill="#2d6e2d" transform="rotate(20,-32,22)"/>
+      <!-- ══ VINE / STEM running through letters ══ -->
+      <!-- Main vine: gentle S-curve from left to right through the text -->
+      <path d="M10,135 C40,110 70,155 110,130 C145,108 160,90 200,115 C235,138 265,105 340,120"
+            fill="none" stroke="#1a3a1a" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- Secondary vine branch upward from center -->
+      <path d="M175,115 C170,90 155,60 165,35"
+            fill="none" stroke="#1a3a1a" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M200,115 C210,85 225,65 215,40"
+            fill="none" stroke="#1a3a1a" stroke-width="1.5" stroke-linecap="round"/>
+
+      <!-- ══ LEAVES along vine ══ -->
+      <g fill="#1e4d1e" opacity="0.85">
+        <use href="#lf" transform="translate(55,128) rotate(-40) scale(1.4)"/>
+        <use href="#lf" transform="translate(95,145) rotate(30) scale(1.2)"/>
+        <use href="#lf" transform="translate(145,122) rotate(-55) scale(1.5)"/>
+        <use href="#lf" transform="translate(240,125) rotate(25) scale(1.3)"/>
+        <use href="#lf" transform="translate(295,115) rotate(-35) scale(1.1)"/>
+        <use href="#lf" transform="translate(163,70) rotate(-60) scale(1.0)"/>
+        <use href="#lf" transform="translate(218,75) rotate(40) scale(0.9)"/>
       </g>
 
-      <!-- Text: Rose split around the rose, Cat after -->
-      <!-- R -->
-      <text x="18" y="148" class="rc-letter" fill="#c8273a">R</text>
-      <!-- o -->
-      <text x="58" y="148" class="rc-letter" fill="#9b59b6">o</text>
-      <!-- s -->
-      <text x="93" y="148" class="rc-letter" fill="#f1c40f">s</text>
-      <!-- e — slightly raised and split by rose -->
-      <text x="125" y="148" class="rc-letter" fill="#4a7fd4">e</text>
-      <!-- C -->
-      <text x="168" y="148" class="rc-letter" fill="#c8273a" font-size="58px">C</text>
-      <!-- a -->
-      <text x="210" y="148" class="rc-letter" fill="#9b59b6">a</text>
-      <!-- t -->
-      <text x="249" y="148" class="rc-letter" fill="#f1c40f">t</text>
+      <!-- ══ ROSES / FLOWERS blooming from letters ══ -->
+      <!-- Rose 1: above the R (left) -->
+      <g transform="translate(38,108)">
+        <g fill="#8b1a2a" opacity="0.6">
+          <use href="#pt" transform="rotate(0) scale(1.3)"/>
+          <use href="#pt" transform="rotate(72) scale(1.3)"/>
+          <use href="#pt" transform="rotate(144) scale(1.3)"/>
+          <use href="#pt" transform="rotate(216) scale(1.3)"/>
+          <use href="#pt" transform="rotate(288) scale(1.3)"/>
+        </g>
+        <g fill="#c8273a">
+          <use href="#pt" transform="rotate(36) scale(1.0)"/>
+          <use href="#pt" transform="rotate(108) scale(1.0)"/>
+          <use href="#pt" transform="rotate(180) scale(1.0)"/>
+          <use href="#pt" transform="rotate(252) scale(1.0)"/>
+          <use href="#pt" transform="rotate(324) scale(1.0)"/>
+        </g>
+        <g fill="#e05068">
+          <use href="#pt" transform="rotate(0) scale(0.65)"/>
+          <use href="#pt" transform="rotate(120) scale(0.65)"/>
+          <use href="#pt" transform="rotate(240) scale(0.65)"/>
+        </g>
+        <circle r="4" fill="#6b0f1a"/>
+      </g>
 
-      <!-- Stem going up from rose into the text gap -->
-      <line x1="170" y1="72" x2="170" y2="120" stroke="#2d6e2d" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- Rose 2: large bloom between e and C (center, top) -->
+      <g transform="translate(188,42)">
+        <g fill="#6b0f1a" opacity="0.5">
+          <use href="#pt" transform="rotate(0) scale(1.8)"/>
+          <use href="#pt" transform="rotate(60) scale(1.8)"/>
+          <use href="#pt" transform="rotate(120) scale(1.8)"/>
+          <use href="#pt" transform="rotate(180) scale(1.8)"/>
+          <use href="#pt" transform="rotate(240) scale(1.8)"/>
+          <use href="#pt" transform="rotate(300) scale(1.8)"/>
+        </g>
+        <g fill="#c8273a">
+          <use href="#pt" transform="rotate(30) scale(1.4)"/>
+          <use href="#pt" transform="rotate(90) scale(1.4)"/>
+          <use href="#pt" transform="rotate(150) scale(1.4)"/>
+          <use href="#pt" transform="rotate(210) scale(1.4)"/>
+          <use href="#pt" transform="rotate(270) scale(1.4)"/>
+          <use href="#pt" transform="rotate(330) scale(1.4)"/>
+        </g>
+        <g fill="#e84a6a">
+          <use href="#pt" transform="rotate(0) scale(0.9)"/>
+          <use href="#pt" transform="rotate(72) scale(0.9)"/>
+          <use href="#pt" transform="rotate(144) scale(0.9)"/>
+          <use href="#pt" transform="rotate(216) scale(0.9)"/>
+          <use href="#pt" transform="rotate(288) scale(0.9)"/>
+        </g>
+        <g fill="#f07090">
+          <use href="#pt" transform="rotate(36) scale(0.5)"/>
+          <use href="#pt" transform="rotate(156) scale(0.5)"/>
+          <use href="#pt" transform="rotate(276) scale(0.5)"/>
+        </g>
+        <circle r="5" fill="#4a080f"/>
+      </g>
+
+      <!-- Rose 3: small, near the t (right) -->
+      <g transform="translate(305,112)">
+        <g fill="#8b1a2a" opacity="0.6">
+          <use href="#pt" transform="rotate(0) scale(1.1)"/>
+          <use href="#pt" transform="rotate(72) scale(1.1)"/>
+          <use href="#pt" transform="rotate(144) scale(1.1)"/>
+          <use href="#pt" transform="rotate(216) scale(1.1)"/>
+          <use href="#pt" transform="rotate(288) scale(1.1)"/>
+        </g>
+        <g fill="#c8273a">
+          <use href="#pt" transform="rotate(36) scale(0.8)"/>
+          <use href="#pt" transform="rotate(108) scale(0.8)"/>
+          <use href="#pt" transform="rotate(180) scale(0.8)"/>
+          <use href="#pt" transform="rotate(252) scale(0.8)"/>
+          <use href="#pt" transform="rotate(324) scale(0.8)"/>
+        </g>
+        <circle r="3" fill="#6b0f1a"/>
+      </g>
+
+      <!-- ══ FALLING PETALS (animated) ══ -->
+      <g fill="#c8273a" opacity="0.75">
+        <g class="fp1"><use href="#pt" transform="translate(80,118) rotate(15) scale(0.7)"/></g>
+        <g class="fp2"><use href="#pt" transform="translate(190,60) rotate(-20) scale(0.8)"/></g>
+        <g class="fp3"><use href="#pt" transform="translate(210,55) rotate(35) scale(0.6)"/></g>
+        <g class="fp4"><use href="#pt" transform="translate(170,65) rotate(-10) scale(0.7)"/></g>
+      </g>
+
+      <!-- ══ TEXT ══ -->
+      <text x="12"  y="168" class="hl-letter" fill="#c8273a">R</text>
+      <text x="52"  y="168" class="hl-letter" fill="#9b59b6">o</text>
+      <text x="90"  y="168" class="hl-letter" fill="#f1c40f">s</text>
+      <text x="126" y="168" class="hl-letter" fill="#4a7fd4">e</text>
+      <text x="168" y="168" class="hl-letter" fill="#c8273a">C</text>
+      <text x="212" y="168" class="hl-letter" fill="#9b59b6">a</text>
+      <text x="252" y="168" class="hl-letter" fill="#f1c40f">t</text>
+
+      <!-- Tiny drip/blood drop from R (hanahaki touch) -->
+      <ellipse cx="25" cy="175" rx="2.5" ry="4" fill="#c8273a" opacity="0.6"/>
+      <ellipse cx="188" cy="172" rx="2" ry="3.5" fill="#c8273a" opacity="0.5"/>
     </svg>
   </div>
-  <div class="loader-spin" style="margin-top:0.5rem;"></div>
+  <div class="loader-spin" style="margin-top:1rem;"></div>
   <div class="loader-text">carregando...</div>
 </div>
 
