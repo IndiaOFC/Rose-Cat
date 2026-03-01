@@ -1734,7 +1734,6 @@
       <input type="text" id="searchInput" placeholder="buscar..." oninput="filterMangas()">
     </div>
     <div style="display:flex;align-items:center;gap:0.6rem;">
-      <button id="admResyncBtn" onclick="forceResyncPages()" style="display:none;background:none;border:1px solid rgba(114,137,218,0.5);color:#7289da;font-family:'Share Tech Mono',monospace;font-size:0.6rem;padding:0.3rem 0.6rem;cursor:pointer;letter-spacing:0.1em;" title="Sincronizar páginas com Supabase">↑ SYNC</button>
       <button id="admAddBtn" onclick="openAddModal()" style="display:none;width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(232,74,106,0.18),rgba(155,89,182,0.1) 60%,rgba(74,127,212,0.08));border:1.5px solid rgba(232,74,106,0.6);color:#e84a6a;font-size:1.25rem;line-height:1;cursor:pointer;box-shadow:0 0 10px rgba(200,39,58,0.45),0 0 22px rgba(155,89,182,0.25),0 0 38px rgba(74,127,212,0.15),inset 0 0 8px rgba(232,74,106,0.1);transition:box-shadow 0.3s,transform 0.2s;font-family:'Share Tech Mono',monospace;padding:0;display:none;justify-content:center;align-items:center;" onmouseover="this.style.boxShadow='0 0 16px rgba(200,39,58,0.7),0 0 32px rgba(155,89,182,0.4),0 0 50px rgba(74,127,212,0.25)';this.style.transform='scale(1.1)'" onmouseout="this.style.boxShadow='0 0 10px rgba(200,39,58,0.45),0 0 22px rgba(155,89,182,0.25),0 0 38px rgba(74,127,212,0.15)';this.style.transform='scale(1)'">＋</button>
       <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn" aria-label="Menu">
         <span></span><span></span><span></span>
@@ -2238,7 +2237,9 @@
         console.error('localStorage still full:', e);
       }
       // Sync to Supabase em background
-      syncToSupabase();
+      syncToSupabase().then(() => {
+        showSaveToast('✓ Sincronizado');
+      }).catch(() => {});
     });
   }
 
@@ -2582,18 +2583,18 @@
     if (modalEditBtn) modalEditBtn.style.display = isAdm ? 'block' : 'none';
   }
 
-  async function forceResyncPages() {
-    const btn = document.getElementById('admResyncBtn');
-    if (btn) { btn.textContent = '⏳ ...'; btn.disabled = true; }
-    try {
-      await syncToSupabase();
-      if (btn) { btn.textContent = '✓ SYNC'; btn.style.color = '#5cba7a'; btn.style.borderColor = '#5cba7a'; }
-      setTimeout(() => {
-        if (btn) { btn.textContent = '↑ SYNC'; btn.style.color = '#7289da'; btn.style.borderColor = 'rgba(114,137,218,0.5)'; btn.disabled = false; }
-      }, 3000);
-    } catch(e) {
-      if (btn) { btn.textContent = '✕ ERR'; btn.style.color = '#c8273a'; btn.disabled = false; }
+  function showSaveToast(msg) {
+    let t = document.getElementById('saveToast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'saveToast';
+      t.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;background:rgba(10,10,18,0.95);border:1px solid rgba(92,186,122,0.5);color:#5cba7a;font-family:"Share Tech Mono",monospace;font-size:0.65rem;padding:0.4rem 0.8rem;letter-spacing:0.1em;z-index:9999;transition:opacity 0.4s;pointer-events:none;opacity:0;';
+      document.body.appendChild(t);
     }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._hide);
+    t._hide = setTimeout(() => { t.style.opacity = '0'; }, 2500);
   }
 
   function openEditFromDetail() {
@@ -3081,6 +3082,8 @@
       pdf: document.getElementById('newChPdf').value.trim()
     });
     save();
+    // Auto-sync pages to Supabase immediately (don't wait)
+    if (supaReady) syncPagesToSupabase().catch(e => console.warn('Auto-sync fail:', e));
     document.getElementById('newChNum').value = '';
     document.getElementById('newChTitle').value = '';
     document.getElementById('newChDate').value = '';
@@ -3256,10 +3259,7 @@
   }
 
   function syncPagesHidden(pages) {
-    // Save large base64 images to IndexedDB, keep only URLs inline
-    // Use a temp key to stage pages, finalized on save
     const isEch = (pages === echPages);
-    const stageKey = isEch ? '__stage_ech__' : '__stage_newch__';
 
     if (pages.length === 0) {
       if (isEch) document.getElementById('echPdf').value = '';
@@ -3267,17 +3267,19 @@
       return;
     }
 
-    // Separate base64 from URLs
+    // Generate unique session key so chapters never overwrite each other
+    const sessionKey = (isEch ? 'ech' : 'nch') + '_' + Date.now();
+
     const toSave = pages.map(function(p, i) {
-      if (p.src.startsWith('data:')) {
-        return { type: 'idb', key: stageKey + i, src: null };
+      if (p.src && p.src.startsWith('data:')) {
+        return { type: 'idb', key: sessionKey + '_' + i, src: null };
       }
       return { type: 'url', key: null, src: p.src };
     });
 
     const savePromises = pages.map(function(p, i) {
-      if (p.src.startsWith('data:')) {
-        return savePdf(stageKey + i, p.src);
+      if (p.src && p.src.startsWith('data:')) {
+        return savePdf(sessionKey + '_' + i, p.src);
       }
       return Promise.resolve();
     });
@@ -3528,9 +3530,6 @@
         document.getElementById('admCodeInput').value = '';
         document.getElementById('admError').style.display = 'none';
         const logo = document.querySelector('.logo');
-        // Show resync button for ADM
-        const resyncBtn = document.getElementById('admResyncBtn');
-        if (resyncBtn) resyncBtn.style.display = 'block';
         // neon apenas no botão +Novo
         applyFilters(); // re-render cards with ADM buttons
       } else {
@@ -3618,6 +3617,7 @@
       pdf: document.getElementById('echPdf').value.trim()
     };
     save();
+    if (supaReady) syncPagesToSupabase().catch(e => console.warn('Auto-sync fail:', e));
     document.getElementById('editChapterModal').classList.remove('open');
     rerenderChapters(m);
   }
