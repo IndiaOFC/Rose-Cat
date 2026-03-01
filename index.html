@@ -2657,18 +2657,36 @@
         document.body.style.overflow = 'hidden';
         return;
       }
-      // Load pages: resolve IDB keys to base64
+      // Load pages: resolve IDB keys, fallback to Supabase on-demand
       pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">⏳</div><p>Carregando páginas...</p></div>';
       document.getElementById('pdfModal').classList.add('open');
       document.body.style.overflow = 'hidden';
-      const promises = pageDefs.map(function(p) {
-        if (p.type === 'idb') return getPdf(p.key);
-        return Promise.resolve(p.src);
-      });
+
+      async function resolvePageDef(p) {
+        if (p.type === 'url') return p.src;
+        if (p.type !== 'idb') return null;
+        // Try IDB first
+        let data = await getPdf(p.key);
+        if (data) return data;
+        // IDB miss — try Supabase on-demand
+        if (supaReady) {
+          pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">⏳</div><p>Buscando páginas do servidor...<br><small style="opacity:0.5;font-size:0.7rem;">Primeira vez pode demorar um pouco</small></p></div>';
+          try {
+            const { data: row } = await supa.from('pages').select('data').eq('key', p.key).single();
+            if (row && row.data) {
+              await savePdf(p.key, row.data); // cache locally
+              return row.data;
+            }
+          } catch(e) { console.warn('[RoseCat] Supabase page fetch fail:', p.key, e); }
+        }
+        return null;
+      }
+
+      const promises = pageDefs.map(resolvePageDef);
       Promise.all(promises).then(function(srcs) {
         srcs = srcs.filter(Boolean);
         if (srcs.length === 0) {
-          pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">📄</div><p>Nenhuma página encontrada.</p></div>';
+          pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">📄</div><p>Nenhuma página encontrada.<br><small style="opacity:0.5;font-size:0.7rem;">Use ↑ SYNC em modo ADM para sincronizar.</small></p></div>';
         } else {
           openPageReader(srcs, title, pdfContent);
         }
