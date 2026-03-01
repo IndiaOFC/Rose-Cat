@@ -1907,15 +1907,13 @@
       return mCopy;
     });
     Promise.all(pdfPromises).then(() => {
-      if (!supaReady) {
-        // Only use localStorage if Supabase not available
-        try {
-          localStorage.setItem('mangas', JSON.stringify(stripped));
-        } catch(e) {
-          console.error('localStorage still full:', e);
-        }
+      // Sempre salva no localStorage (cache local rápido para próxima recarga)
+      try {
+        localStorage.setItem('mangas', JSON.stringify(stripped));
+      } catch(e) {
+        console.error('localStorage still full:', e);
       }
-      // Sync to Supabase
+      // Sync to Supabase em background
       syncToSupabase();
     });
   }
