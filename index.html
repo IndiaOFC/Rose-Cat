@@ -1333,149 +1333,244 @@
 <body>
 
 <div id="loadingScreen">
-  <div style="position:relative;width:360px;height:220px;">
-    <svg viewBox="0 0 360 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;overflow:visible;">
+  <style>
+    #loadingScreen {
+      background: radial-gradient(ellipse at center, #0d0010 0%, #000 70%);
+    }
+    @keyframes girRun {
+      0%   { left: -80px; transform: scaleX(1); }
+      49%  { left: calc(100% + 80px); transform: scaleX(1); }
+      50%  { left: calc(100% + 80px); transform: scaleX(-1); }
+      99%  { left: -80px; transform: scaleX(-1); }
+      100% { left: -80px; transform: scaleX(1); }
+    }
+    @keyframes legL { 0%,100%{transform:rotate(-25deg)} 50%{transform:rotate(25deg)} }
+    @keyframes legR { 0%,100%{transform:rotate(25deg)} 50%{transform:rotate(-25deg)} }
+    @keyframes armW { 0%,100%{transform:rotate(-20deg)} 50%{transform:rotate(20deg)} }
+    @keyframes petalDrift1 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(-30px,120px) rotate(-60deg);opacity:0} }
+    @keyframes petalDrift2 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(25px,130px) rotate(45deg);opacity:0} }
+    @keyframes petalDrift3 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(-15px,110px) rotate(-30deg);opacity:0} }
+    @keyframes petalDrift4 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(35px,125px) rotate(70deg);opacity:0} }
+    @keyframes petalDrift5 { 0%{transform:translate(0,0) rotate(0deg);opacity:1} 100%{transform:translate(-25px,140px) rotate(-50deg);opacity:0} }
+    @keyframes rootGrow { 0%{stroke-dashoffset:300} 100%{stroke-dashoffset:0} }
+    @keyframes flicker { 0%,100%{opacity:1} 50%{opacity:0.85} }
+    .pf1{animation:petalDrift1 2.8s ease-in infinite;}
+    .pf2{animation:petalDrift2 3.2s ease-in 0.5s infinite;}
+    .pf3{animation:petalDrift3 2.5s ease-in 1.0s infinite;}
+    .pf4{animation:petalDrift4 3.5s ease-in 0.8s infinite;}
+    .pf5{animation:petalDrift5 2.9s ease-in 1.4s infinite;}
+    .root-line { stroke-dasharray:300; animation:rootGrow 2.5s ease-out forwards; }
+    .gir-flicker { animation:flicker 4s ease-in-out infinite; }
+  </style>
+
+  <!-- MAIN SVG: roots + roses + text -->
+  <div style="position:relative;width:min(90vw,420px);height:240px;">
+    <svg viewBox="0 0 420 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;overflow:visible;">
       <defs>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Metal+Mania&display=swap');
-          .hl-letter { font-family:'Metal Mania',cursive; font-size:54px; }
-          @keyframes petalFall1 { 0%{transform:translate(0,0) rotate(0deg);opacity:0.9} 100%{transform:translate(-18px,60px) rotate(-40deg);opacity:0} }
-          @keyframes petalFall2 { 0%{transform:translate(0,0) rotate(0deg);opacity:0.8} 100%{transform:translate(12px,55px) rotate(30deg);opacity:0} }
-          @keyframes petalFall3 { 0%{transform:translate(0,0) rotate(0deg);opacity:0.7} 100%{transform:translate(-8px,65px) rotate(-20deg);opacity:0} }
-          @keyframes petalFall4 { 0%{transform:translate(0,0) rotate(0deg);opacity:0.9} 100%{transform:translate(20px,50px) rotate(50deg);opacity:0} }
-          .fp1{animation:petalFall1 3s ease-in infinite;}
-          .fp2{animation:petalFall2 3.4s ease-in 0.6s infinite;}
-          .fp3{animation:petalFall3 2.8s ease-in 1.2s infinite;}
-          .fp4{animation:petalFall4 3.2s ease-in 0.3s infinite;}
-        </style>
-        <!-- Single petal shape -->
-        <path id="pt" d="M0,0 C3,-12 8,-18 0,-24 C-8,-18 -3,-12 0,0Z"/>
-        <!-- Leaf shape -->
-        <path id="lf" d="M0,0 C-5,-8 -3,-16 0,-20 C3,-16 5,-8 0,0Z"/>
+        <path id="p5" d="M0,0 C2,-10 5,-16 0,-22 C-5,-16 -2,-10 0,0Z"/>
+        <path id="lv" d="M0,0 C-4,-7 -2,-14 0,-18 C2,-14 4,-7 0,0Z"/>
+        <radialGradient id="rg1" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#3a001a"/>
+          <stop offset="100%" stop-color="#0d0010"/>
+        </radialGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="softglow">
+          <feGaussianBlur stdDeviation="4" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
       </defs>
 
-      <!-- ══ VINE / STEM running through letters ══ -->
-      <!-- Main vine: gentle S-curve from left to right through the text -->
-      <path d="M10,135 C40,110 70,155 110,130 C145,108 160,90 200,115 C235,138 265,105 340,120"
-            fill="none" stroke="#1a3a1a" stroke-width="2.5" stroke-linecap="round"/>
-      <!-- Secondary vine branch upward from center -->
-      <path d="M175,115 C170,90 155,60 165,35"
-            fill="none" stroke="#1a3a1a" stroke-width="1.8" stroke-linecap="round"/>
-      <path d="M200,115 C210,85 225,65 215,40"
-            fill="none" stroke="#1a3a1a" stroke-width="1.5" stroke-linecap="round"/>
-
-      <!-- ══ LEAVES along vine ══ -->
-      <g fill="#1e4d1e" opacity="0.85">
-        <use href="#lf" transform="translate(55,128) rotate(-40) scale(1.4)"/>
-        <use href="#lf" transform="translate(95,145) rotate(30) scale(1.2)"/>
-        <use href="#lf" transform="translate(145,122) rotate(-55) scale(1.5)"/>
-        <use href="#lf" transform="translate(240,125) rotate(25) scale(1.3)"/>
-        <use href="#lf" transform="translate(295,115) rotate(-35) scale(1.1)"/>
-        <use href="#lf" transform="translate(163,70) rotate(-60) scale(1.0)"/>
-        <use href="#lf" transform="translate(218,75) rotate(40) scale(0.9)"/>
+      <!-- ══ ROOTS spreading from letters ══ -->
+      <g stroke="#1a4d1a" fill="none" stroke-linecap="round">
+        <!-- roots from R -->
+        <path class="root-line" d="M30,178 C15,195 5,210 -10,225" stroke-width="2.2"/>
+        <path class="root-line" d="M30,178 C20,200 25,215 10,230" stroke-width="1.5" style="animation-delay:0.3s"/>
+        <path class="root-line" d="M45,182 C35,205 20,212 8,228" stroke-width="1.2" style="animation-delay:0.6s"/>
+        <!-- roots from o -->
+        <path class="root-line" d="M75,182 C70,200 60,215 50,235" stroke-width="1.8" style="animation-delay:0.2s"/>
+        <!-- roots from e/C center -->
+        <path class="root-line" d="M195,182 C185,200 170,218 155,240" stroke-width="2.5" style="animation-delay:0.1s"/>
+        <path class="root-line" d="M200,182 C210,200 220,215 215,238" stroke-width="1.8" style="animation-delay:0.4s"/>
+        <path class="root-line" d="M185,178 C175,195 160,205 145,230" stroke-width="1.3" style="animation-delay:0.7s"/>
+        <path class="root-line" d="M210,178 C225,198 235,208 240,232" stroke-width="1.4" style="animation-delay:0.5s"/>
+        <!-- roots from t -->
+        <path class="root-line" d="M310,178 C320,198 325,215 335,235" stroke-width="2" style="animation-delay:0.3s"/>
+        <path class="root-line" d="M295,182 C290,202 280,218 270,238" stroke-width="1.4" style="animation-delay:0.6s"/>
+        <!-- cross roots -->
+        <path class="root-line" d="M100,185 C120,210 150,220 160,240" stroke-width="1.2" style="animation-delay:0.8s"/>
+        <path class="root-line" d="M260,183 C255,205 245,220 240,240" stroke-width="1.3" style="animation-delay:0.9s"/>
+        <!-- brighter accent roots -->
+        <path class="root-line" d="M195,182 C195,195 195,210 195,240" stroke="#2d6e2d" stroke-width="2.8" style="animation-delay:0s"/>
       </g>
 
-      <!-- ══ ROSES / FLOWERS blooming from letters ══ -->
-      <!-- Rose 1: above the R (left) -->
-      <g transform="translate(38,108)">
-        <g fill="#8b1a2a" opacity="0.6">
-          <use href="#pt" transform="rotate(0) scale(1.3)"/>
-          <use href="#pt" transform="rotate(72) scale(1.3)"/>
-          <use href="#pt" transform="rotate(144) scale(1.3)"/>
-          <use href="#pt" transform="rotate(216) scale(1.3)"/>
-          <use href="#pt" transform="rotate(288) scale(1.3)"/>
+      <!-- ══ VINE through text ══ -->
+      <path d="M5,165 C50,140 90,170 130,148 C165,128 185,108 220,130 C255,150 290,128 380,140"
+            fill="none" stroke="#1e5c1e" stroke-width="2.8" stroke-linecap="round" filter="url(#glow)"/>
+      <path d="M190,130 C185,100 175,65 182,30"
+            fill="none" stroke="#1e5c1e" stroke-width="2" stroke-linecap="round"/>
+      <path d="M220,130 C228,95 238,70 228,38"
+            fill="none" stroke="#1a4d1a" stroke-width="1.6" stroke-linecap="round"/>
+
+      <!-- ══ LEAVES ══ -->
+      <g fill="#1e5c1e" opacity="0.9">
+        <use href="#lv" transform="translate(52,155) rotate(-45) scale(1.5)"/>
+        <use href="#lv" transform="translate(98,162) rotate(35) scale(1.3)"/>
+        <use href="#lv" transform="translate(148,138) rotate(-55) scale(1.6)"/>
+        <use href="#lv" transform="translate(258,138) rotate(28) scale(1.4)"/>
+        <use href="#lv" transform="translate(318,132) rotate(-32) scale(1.2)"/>
+        <use href="#lv" transform="translate(178,80) rotate(-65) scale(1.1)"/>
+        <use href="#lv" transform="translate(228,85) rotate(42) scale(1.0)"/>
+        <use href="#lv" transform="translate(186,50) rotate(-70) scale(0.9)"/>
+      </g>
+
+      <!-- ══ ROSE 1: small left ══ -->
+      <g transform="translate(42,138)" filter="url(#glow)">
+        <g fill="#6b0f1a" opacity="0.7">
+          <use href="#p5" transform="rotate(0) scale(1.4)"/>
+          <use href="#p5" transform="rotate(72) scale(1.4)"/>
+          <use href="#p5" transform="rotate(144) scale(1.4)"/>
+          <use href="#p5" transform="rotate(216) scale(1.4)"/>
+          <use href="#p5" transform="rotate(288) scale(1.4)"/>
         </g>
         <g fill="#c8273a">
-          <use href="#pt" transform="rotate(36) scale(1.0)"/>
-          <use href="#pt" transform="rotate(108) scale(1.0)"/>
-          <use href="#pt" transform="rotate(180) scale(1.0)"/>
-          <use href="#pt" transform="rotate(252) scale(1.0)"/>
-          <use href="#pt" transform="rotate(324) scale(1.0)"/>
+          <use href="#p5" transform="rotate(36) scale(1.0)"/>
+          <use href="#p5" transform="rotate(108) scale(1.0)"/>
+          <use href="#p5" transform="rotate(180) scale(1.0)"/>
+          <use href="#p5" transform="rotate(252) scale(1.0)"/>
+          <use href="#p5" transform="rotate(324) scale(1.0)"/>
         </g>
-        <g fill="#e05068">
-          <use href="#pt" transform="rotate(0) scale(0.65)"/>
-          <use href="#pt" transform="rotate(120) scale(0.65)"/>
-          <use href="#pt" transform="rotate(240) scale(0.65)"/>
-        </g>
-        <circle r="4" fill="#6b0f1a"/>
+        <g fill="#e84a6a"><use href="#p5" transform="rotate(0) scale(0.6)"/><use href="#p5" transform="rotate(120) scale(0.6)"/><use href="#p5" transform="rotate(240) scale(0.6)"/></g>
+        <circle r="4" fill="#3a0508"/>
       </g>
 
-      <!-- Rose 2: large bloom between e and C (center, top) -->
-      <g transform="translate(188,42)">
-        <g fill="#6b0f1a" opacity="0.5">
-          <use href="#pt" transform="rotate(0) scale(1.8)"/>
-          <use href="#pt" transform="rotate(60) scale(1.8)"/>
-          <use href="#pt" transform="rotate(120) scale(1.8)"/>
-          <use href="#pt" transform="rotate(180) scale(1.8)"/>
-          <use href="#pt" transform="rotate(240) scale(1.8)"/>
-          <use href="#pt" transform="rotate(300) scale(1.8)"/>
+      <!-- ══ ROSE 2: large center-top ══ -->
+      <g transform="translate(205,30)" filter="url(#softglow)">
+        <g fill="#4a0510" opacity="0.6">
+          <use href="#p5" transform="rotate(0) scale(2.2)"/>
+          <use href="#p5" transform="rotate(60) scale(2.2)"/>
+          <use href="#p5" transform="rotate(120) scale(2.2)"/>
+          <use href="#p5" transform="rotate(180) scale(2.2)"/>
+          <use href="#p5" transform="rotate(240) scale(2.2)"/>
+          <use href="#p5" transform="rotate(300) scale(2.2)"/>
+        </g>
+        <g fill="#8b1a2a" opacity="0.8">
+          <use href="#p5" transform="rotate(30) scale(1.7)"/>
+          <use href="#p5" transform="rotate(90) scale(1.7)"/>
+          <use href="#p5" transform="rotate(150) scale(1.7)"/>
+          <use href="#p5" transform="rotate(210) scale(1.7)"/>
+          <use href="#p5" transform="rotate(270) scale(1.7)"/>
+          <use href="#p5" transform="rotate(330) scale(1.7)"/>
         </g>
         <g fill="#c8273a">
-          <use href="#pt" transform="rotate(30) scale(1.4)"/>
-          <use href="#pt" transform="rotate(90) scale(1.4)"/>
-          <use href="#pt" transform="rotate(150) scale(1.4)"/>
-          <use href="#pt" transform="rotate(210) scale(1.4)"/>
-          <use href="#pt" transform="rotate(270) scale(1.4)"/>
-          <use href="#pt" transform="rotate(330) scale(1.4)"/>
+          <use href="#p5" transform="rotate(0) scale(1.2)"/>
+          <use href="#p5" transform="rotate(72) scale(1.2)"/>
+          <use href="#p5" transform="rotate(144) scale(1.2)"/>
+          <use href="#p5" transform="rotate(216) scale(1.2)"/>
+          <use href="#p5" transform="rotate(288) scale(1.2)"/>
         </g>
-        <g fill="#e84a6a">
-          <use href="#pt" transform="rotate(0) scale(0.9)"/>
-          <use href="#pt" transform="rotate(72) scale(0.9)"/>
-          <use href="#pt" transform="rotate(144) scale(0.9)"/>
-          <use href="#pt" transform="rotate(216) scale(0.9)"/>
-          <use href="#pt" transform="rotate(288) scale(0.9)"/>
+        <g fill="#f06080">
+          <use href="#p5" transform="rotate(36) scale(0.7)"/>
+          <use href="#p5" transform="rotate(156) scale(0.7)"/>
+          <use href="#p5" transform="rotate(276) scale(0.7)"/>
         </g>
-        <g fill="#f07090">
-          <use href="#pt" transform="rotate(36) scale(0.5)"/>
-          <use href="#pt" transform="rotate(156) scale(0.5)"/>
-          <use href="#pt" transform="rotate(276) scale(0.5)"/>
-        </g>
-        <circle r="5" fill="#4a080f"/>
+        <circle r="6" fill="#1a0208"/>
+        <circle r="2.5" fill="#c8273a" opacity="0.8"/>
       </g>
 
-      <!-- Rose 3: small, near the t (right) -->
-      <g transform="translate(305,112)">
-        <g fill="#8b1a2a" opacity="0.6">
-          <use href="#pt" transform="rotate(0) scale(1.1)"/>
-          <use href="#pt" transform="rotate(72) scale(1.1)"/>
-          <use href="#pt" transform="rotate(144) scale(1.1)"/>
-          <use href="#pt" transform="rotate(216) scale(1.1)"/>
-          <use href="#pt" transform="rotate(288) scale(1.1)"/>
+      <!-- ══ ROSE 3: small right ══ -->
+      <g transform="translate(340,130)" filter="url(#glow)">
+        <g fill="#6b0f1a" opacity="0.7">
+          <use href="#p5" transform="rotate(0) scale(1.2)"/><use href="#p5" transform="rotate(72) scale(1.2)"/>
+          <use href="#p5" transform="rotate(144) scale(1.2)"/><use href="#p5" transform="rotate(216) scale(1.2)"/>
+          <use href="#p5" transform="rotate(288) scale(1.2)"/>
         </g>
         <g fill="#c8273a">
-          <use href="#pt" transform="rotate(36) scale(0.8)"/>
-          <use href="#pt" transform="rotate(108) scale(0.8)"/>
-          <use href="#pt" transform="rotate(180) scale(0.8)"/>
-          <use href="#pt" transform="rotate(252) scale(0.8)"/>
-          <use href="#pt" transform="rotate(324) scale(0.8)"/>
+          <use href="#p5" transform="rotate(36) scale(0.85)"/><use href="#p5" transform="rotate(108) scale(0.85)"/>
+          <use href="#p5" transform="rotate(180) scale(0.85)"/><use href="#p5" transform="rotate(252) scale(0.85)"/>
+          <use href="#p5" transform="rotate(324) scale(0.85)"/>
         </g>
-        <circle r="3" fill="#6b0f1a"/>
+        <circle r="3.5" fill="#3a0508"/>
       </g>
 
-      <!-- ══ FALLING PETALS (animated) ══ -->
-      <g fill="#c8273a" opacity="0.75">
-        <g class="fp1"><use href="#pt" transform="translate(80,118) rotate(15) scale(0.7)"/></g>
-        <g class="fp2"><use href="#pt" transform="translate(190,60) rotate(-20) scale(0.8)"/></g>
-        <g class="fp3"><use href="#pt" transform="translate(210,55) rotate(35) scale(0.6)"/></g>
-        <g class="fp4"><use href="#pt" transform="translate(170,65) rotate(-10) scale(0.7)"/></g>
+      <!-- ══ ROSE 4: tiny extra ══ -->
+      <g transform="translate(148,105)">
+        <g fill="#8b1a2a" opacity="0.8">
+          <use href="#p5" transform="rotate(0) scale(0.9)"/><use href="#p5" transform="rotate(72) scale(0.9)"/>
+          <use href="#p5" transform="rotate(144) scale(0.9)"/><use href="#p5" transform="rotate(216) scale(0.9)"/>
+          <use href="#p5" transform="rotate(288) scale(0.9)"/>
+        </g>
+        <g fill="#e05070"><use href="#p5" transform="rotate(36) scale(0.55)"/><use href="#p5" transform="rotate(156) scale(0.55)"/><use href="#p5" transform="rotate(276) scale(0.55)"/></g>
+        <circle r="2.5" fill="#2a0308"/>
       </g>
+
+      <!-- ══ FALLING PETALS animated ══ -->
+      <g filter="url(#glow)">
+        <g class="pf1"><use href="#p5" transform="translate(90,148) rotate(20) scale(0.85)" fill="#c8273a" opacity="0.9"/></g>
+        <g class="pf2"><use href="#p5" transform="translate(205,48) rotate(-25) scale(1.0)" fill="#e05070" opacity="0.85"/></g>
+        <g class="pf3"><use href="#p5" transform="translate(225,42) rotate(40) scale(0.75)" fill="#c8273a" opacity="0.9"/></g>
+        <g class="pf4"><use href="#p5" transform="translate(185,52) rotate(-15) scale(0.9)" fill="#d03060" opacity="0.8"/></g>
+        <g class="pf5"><use href="#p5" transform="translate(218,58) rotate(30) scale(0.65)" fill="#e84a6a" opacity="0.85"/></g>
+      </g>
+
+      <!-- ══ HANAHAKI blood drops ══ -->
+      <ellipse cx="28" cy="186" rx="2.5" ry="5" fill="#c8273a" opacity="0.55"/>
+      <ellipse cx="210" cy="188" rx="2" ry="4" fill="#c8273a" opacity="0.45"/>
+      <ellipse cx="100" cy="188" rx="1.8" ry="3.5" fill="#c8273a" opacity="0.4"/>
 
       <!-- ══ TEXT ══ -->
-      <text x="12"  y="168" class="hl-letter" fill="#c8273a">R</text>
-      <text x="52"  y="168" class="hl-letter" fill="#9b59b6">o</text>
-      <text x="90"  y="168" class="hl-letter" fill="#f1c40f">s</text>
-      <text x="126" y="168" class="hl-letter" fill="#4a7fd4">e</text>
-      <text x="168" y="168" class="hl-letter" fill="#c8273a">C</text>
-      <text x="212" y="168" class="hl-letter" fill="#9b59b6">a</text>
-      <text x="252" y="168" class="hl-letter" fill="#f1c40f">t</text>
-
-      <!-- Tiny drip/blood drop from R (hanahaki touch) -->
-      <ellipse cx="25" cy="175" rx="2.5" ry="4" fill="#c8273a" opacity="0.6"/>
-      <ellipse cx="188" cy="172" rx="2" ry="3.5" fill="#c8273a" opacity="0.5"/>
+      <g class="gir-flicker">
+        <text x="10"  y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#c8273a" filter="url(#glow)">R</text>
+        <text x="52"  y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#9b59b6" filter="url(#glow)">o</text>
+        <text x="92"  y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#f1c40f" filter="url(#glow)">s</text>
+        <text x="130" y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#4a7fd4" filter="url(#glow)">e</text>
+        <text x="172" y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#c8273a" filter="url(#glow)">C</text>
+        <text x="218" y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#9b59b6" filter="url(#glow)">a</text>
+        <text x="258" y="182" style="font-family:'Metal Mania',cursive;font-size:56px;" fill="#f1c40f" filter="url(#glow)">t</text>
+      </g>
     </svg>
   </div>
-  <div class="loader-spin" style="margin-top:1rem;"></div>
-  <div class="loader-text">carregando...</div>
+
+  <!-- ══ GIR RUNNING ══ -->
+  <div style="position:relative;width:min(90vw,420px);height:64px;overflow:hidden;margin-top:-8px;">
+    <div style="position:absolute;bottom:4px;animation:girRun 4s linear infinite;" id="girSprite">
+      <svg width="52" height="58" viewBox="0 0 52 58" xmlns="http://www.w3.org/2000/svg">
+        <!-- ears/antennae -->
+        <polygon points="14,8 10,0 18,6" fill="#111"/>
+        <polygon points="38,8 42,0 34,6" fill="#111"/>
+        <!-- body -->
+        <rect x="10" y="10" width="32" height="28" rx="7" fill="#5dc85d" stroke="#111" stroke-width="2"/>
+        <!-- stitch line -->
+        <line x1="26" y1="12" x2="26" y2="36" stroke="#2a7a2a" stroke-width="1.2" stroke-dasharray="3,2"/>
+        <!-- eyes -->
+        <ellipse cx="18" cy="24" rx="7" ry="8" fill="white" stroke="#111" stroke-width="1.5"/>
+        <ellipse cx="36" cy="24" rx="5.5" ry="6.5" fill="white" stroke="#111" stroke-width="1.5"/>
+        <circle cx="17" cy="25" r="2.5" fill="#111"/>
+        <circle cx="36" cy="25" r="2" fill="#111"/>
+        <!-- nose -->
+        <polygon points="26,33 24,37 28,37" fill="#111"/>
+        <!-- mouth/tongue -->
+        <path d="M20,37 Q26,42 32,37" fill="none" stroke="#111" stroke-width="1.2"/>
+        <ellipse cx="26" cy="40" rx="4" ry="3" fill="#ff6b8a" opacity="0.9"/>
+        <!-- zipper -->
+        <rect x="21" y="35" width="10" height="5" rx="1" fill="#888" stroke="#555" stroke-width="0.8"/>
+        <rect x="24" y="36" width="4" height="3" fill="#aaa"/>
+        <!-- legs -->
+        <rect x="14" y="36" width="8" height="14" rx="3" fill="#3a8c3a" stroke="#111" stroke-width="1.5" style="transform-origin:18px 36px;animation:legL 0.4s ease-in-out infinite;"/>
+        <rect x="30" y="36" width="8" height="14" rx="3" fill="#3a8c3a" stroke="#111" stroke-width="1.5" style="transform-origin:34px 36px;animation:legR 0.4s ease-in-out infinite;"/>
+        <!-- feet -->
+        <ellipse cx="18" cy="50" rx="6" ry="4" fill="#222" style="transform-origin:18px 50px;animation:legL 0.4s ease-in-out infinite;"/>
+        <ellipse cx="34" cy="50" rx="6" ry="4" fill="#222" style="transform-origin:34px 50px;animation:legR 0.4s ease-in-out infinite;"/>
+        <!-- arms -->
+        <rect x="4" y="15" width="7" height="14" rx="3" fill="#3a8c3a" stroke="#111" stroke-width="1.5" style="transform-origin:8px 15px;animation:armW 0.4s ease-in-out infinite;"/>
+        <rect x="41" y="15" width="7" height="14" rx="3" fill="#3a8c3a" stroke="#111" stroke-width="1.5" style="transform-origin:45px 15px;animation:armW 0.4s ease-in-out reverse infinite;"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="loader-text" style="margin-top:0.5rem;">carregando...</div>
 </div>
 
 <div id="siteBanner" style="width:100%;line-height:0;position:relative;background:#0a0a0f;">
