@@ -3220,31 +3220,7 @@
   }
 
   async function initApp() {
-    if (supaReady) {
-      const loaded = await loadFromSupabase();
-      if (loaded) {
-        hideLoading();
-        renderGrid(mangas);
-        buildGenreList();
-        return;
-      }
-      // Supabase empty - check if localStorage has data to migrate
-      try {
-        const local = JSON.parse(localStorage.getItem('mangas') || 'null');
-        if (local && local.length > 0) {
-          console.log('[RoseCat] Migrando dados locais para Supabase...');
-          mangas = local;
-          await restorePdfs();
-          await syncToSupabase();
-          console.log('[RoseCat] Migração concluída!');
-          hideLoading();
-          renderGrid(mangas);
-          buildGenreList();
-          return;
-        }
-      } catch(e) {}
-    }
-    // Fallback: local data only
+    // STEP 1: mostrar dados locais IMEDIATAMENTE (sem esperar Supabase)
     try {
       const local = JSON.parse(localStorage.getItem('mangas') || 'null');
       if (local && local.length > 0) mangas = local;
@@ -3253,6 +3229,58 @@
     hideLoading();
     renderGrid(mangas);
     buildGenreList();
+
+    // STEP 2: buscar Supabase em background (sem travar a tela)
+    if (!supaReady) return;
+    try {
+      console.log('[RoseCat] Atualizando do Supabase em background...');
+      const { data: rows, error } = await supa.from('mangas').select('data').order('updated_at', { ascending: true });
+      if (error || !rows || rows.length === 0) {
+        // Supabase vazio - migrar dados locais se houver
+        const alreadyMigrated = localStorage.getItem('__migrated__') === '1';
+        if (!alreadyMigrated && mangas.length > 0) {
+          console.log('[RoseCat] Migrando para Supabase...');
+          await syncToSupabase();
+          localStorage.removeItem('mangas');
+          localStorage.setItem('__migrated__', '1');
+          console.log('[RoseCat] Migração concluída!');
+        }
+        return;
+      }
+
+      // Carregar páginas do Supabase
+      const { data: pageRows } = await supa.from('pages').select('key, data');
+      if (pageRows) {
+        for (const p of pageRows) await savePdf(p.key, p.data);
+      }
+
+      // Atualizar mangas com dados do Supabase
+      const loaded = rows.map(r => r.data);
+      // Restaurar capas
+      for (const m of loaded) {
+        if (m.cover && m.cover.startsWith('__idb__')) {
+          const key = m.cover.replace('__idb__', '');
+          const data = await getPdf(key);
+          if (data) m.cover = data;
+        }
+      }
+
+      // Só atualiza a tela se os dados forem diferentes
+      if (JSON.stringify(loaded.map(m=>m.id).sort()) !== JSON.stringify(mangas.map(m=>m.id).sort())) {
+        console.log('[RoseCat] Dados atualizados do Supabase!');
+        mangas = loaded;
+        try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
+        renderGrid(mangas);
+        buildGenreList();
+      } else {
+        console.log('[RoseCat] Dados já sincronizados!');
+        // Atualiza localStorage com versão mais recente
+        mangas = loaded;
+        try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
+      }
+    } catch(e) {
+      console.warn('[RoseCat] Background sync erro:', e);
+    }
   }
   initApp();
 </script>
