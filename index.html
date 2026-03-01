@@ -1559,8 +1559,11 @@
       });
 
       await Promise.all(pdfPromisesSync);
+      // Delete ALL mangas from Supabase then re-insert current state
+      // This ensures deleted mangas are removed everywhere
+      await supa.from('mangas').delete().neq('id', '__never__');
       for (const m of stripped) {
-        await supa.from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
+        await supa.from('mangas').insert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
       }
 
       // Save pages to Supabase storage
@@ -1624,8 +1627,11 @@
           if (data) m.cover = data;
         }
       }
-      // Sync locally
-      try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
+      // Clear stale localStorage and write fresh data
+      try {
+        localStorage.removeItem('mangas');
+        localStorage.setItem('mangas', JSON.stringify(mangas));
+      } catch(e) {}
       return true;
     } catch(e) {
       console.warn('Load from Supabase error:', e);
@@ -1635,39 +1641,7 @@
 
 
   // ── DATA ──────────────────────────────────────────────────────────────────
-  let mangas = JSON.parse(localStorage.getItem('mangas') || 'null') || [
-    {
-      id: 1,
-      title: "Exemplo: Dark Signal",
-      origTitle: "ダーク・シグナル",
-      desc: "Em um mundo pós-colapso, uma jovem engenheira desperta memórias de uma civilização perdida através de sinais de rádio inexplicáveis.",
-      tags: ["sci-fi", "drama", "dystopia"],
-      year: "2023",
-      cover: "",
-      status: "recente",
-      tipo: "manga",
-      chapters: [
-        { num: "Cap. 01", title: "Transmissão", pdf: "", date: "2024-01" },
-        { num: "Cap. 02", title: "Frequência", pdf: "", date: "2024-02" },
-        { num: "Cap. 03", title: "Interferência", pdf: "", date: "2024-03" }
-      ]
-    },
-    {
-      id: 2,
-      title: "Exemplo: Crimson Void",
-      origTitle: "クリムゾン・ヴォイド",
-      desc: "Após a queda do último bastião humano, uma soldada descobre que o inimigo pode não ser o que parece.",
-      tags: ["action", "horror", "mystery"],
-      year: "2022",
-      cover: "",
-      status: "finalizado",
-      tipo: "manga",
-      chapters: [
-        { num: "Cap. 01", title: "O Último Posto", pdf: "", date: "2023-06" },
-        { num: "Cap. 02", title: "Além das Ruínas", pdf: "", date: "2023-08" }
-      ]
-    }
-  ];
+  let mangas = [];
 
   let currentMangaId = null;
 
@@ -1734,12 +1708,15 @@
       return mCopy;
     });
     Promise.all(pdfPromises).then(() => {
-      try {
-        localStorage.setItem('mangas', JSON.stringify(stripped));
-      } catch(e) {
-        console.error('localStorage still full:', e);
+      if (!supaReady) {
+        // Only use localStorage if Supabase not available
+        try {
+          localStorage.setItem('mangas', JSON.stringify(stripped));
+        } catch(e) {
+          console.error('localStorage still full:', e);
+        }
       }
-      // Sync to Supabase in background
+      // Sync to Supabase
       syncToSupabase();
     });
   }
@@ -2949,6 +2926,7 @@
   // Try Supabase first, fallback to localStorage
   async function initApp() {
     if (supaReady) {
+      // Always try Supabase first - clear any stale local data
       const loaded = await loadFromSupabase();
       if (loaded) {
         renderGrid(mangas);
@@ -2956,7 +2934,11 @@
         return;
       }
     }
-    // Fallback: local data
+    // Fallback: load from localStorage if Supabase unavailable
+    try {
+      const local = JSON.parse(localStorage.getItem('mangas') || 'null');
+      if (local && local.length > 0) mangas = local;
+    } catch(e) {}
     await restorePdfs();
     renderGrid(mangas);
     buildGenreList();
