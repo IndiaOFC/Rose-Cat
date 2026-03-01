@@ -1517,7 +1517,7 @@
 
   // ── SUPABASE CONFIG ────────────────────────────────────────────────────────
   const SUPA_URL = 'https://oiawkaxvvhyltmwqjdsi.supabase.co';
-  const SUPA_KEY = 'sb_publishable_qaroamgGQ5Ar25avB6UoXw_gQCsjQzd';
+  const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pYXdrYXh2dmh5bHRtd3FqZHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMjI2MTAsImV4cCI6MjA4Nzg5ODYxMH0.dxTlm9FzFhNK7dTBTLbsaVhzUzhESjV3AiBiEGCaAKg';
   let supa = null;
   let supaReady = false;
 
@@ -1526,9 +1526,9 @@
     try {
       supa = supabase.createClient(SUPA_URL, SUPA_KEY);
       supaReady = true;
-      console.log('Supabase conectado!');
+      console.log('[RoseCat] Supabase conectado!');
     } catch(e) {
-      console.warn('Supabase erro:', e);
+      console.error('[RoseCat] Supabase erro ao iniciar:', e);
     }
   }
 
@@ -1536,6 +1536,7 @@
   async function syncToSupabase() {
     if (!supaReady) return;
     try {
+      console.log('[RoseCat] Salvando no Supabase...');
       // Save mangas metadata (strip large base64)
       const stripped = mangas.map(m => {
         const mCopy = Object.assign({}, m);
@@ -1590,8 +1591,11 @@
   async function loadFromSupabase() {
     if (!supaReady) return false;
     try {
+      console.log('[RoseCat] Carregando do Supabase...');
       const { data: rows, error } = await supa.from('mangas').select('data').order('updated_at', { ascending: true });
-      if (error || !rows || rows.length === 0) return false;
+      if (error) { console.error('[RoseCat] Erro ao carregar mangas:', error); return false; }
+      if (!rows || rows.length === 0) { console.log('[RoseCat] Nenhum manga no Supabase ainda.'); return false; }
+      console.log('[RoseCat] Carregados', rows.length, 'mangas do Supabase!');
 
       const loaded = rows.map(r => r.data);
 
