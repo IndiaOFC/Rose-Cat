@@ -2145,6 +2145,30 @@
     }
   }
 
+  // Upload only specific IDB keys to Supabase (for newly added chapters)
+  async function syncSpecificPages(keys) {
+    if (!supaReady || !keys || keys.length === 0) return;
+    const client = supaWrite || supa;
+    let uploaded = 0;
+    for (const key of keys) {
+      try {
+        let data = await getPdf(key);
+        if (!data) continue;
+        // Compress if large
+        const sizeKB = Math.round(data.length * 0.75 / 1024);
+        if (sizeKB > 700 && data.startsWith('data:image')) {
+          data = await compressImage(data, 700, 0.78);
+          await savePdf(key, data);
+        }
+        const finalKB = Math.round(data.length * 0.75 / 1024);
+        if (finalKB > 900) continue;
+        const { error } = await client.from('pages').upsert({ key, data });
+        if (!error) uploaded++;
+      } catch(e) { console.warn('[RoseCat] Erro ao enviar página:', key, e); }
+    }
+    console.log('[RoseCat] syncSpecificPages: ' + uploaded + '/' + keys.length + ' enviadas');
+  }
+
   async function syncPagesToSupabase() {
     if (!supaReady) return;
     try {
@@ -3135,12 +3159,27 @@
       date: document.getElementById('newChDate').value.trim(),
       pdf: document.getElementById('newChPdf').value.trim()
     });
-    save();
-    // Upload pages to Supabase synchronously - show progress
-    if (supaReady) {
-      showSaveToast('⏳ Enviando páginas...');
-      syncPagesToSupabase().then(() => showSaveToast('✓ Capítulo salvo!')).catch(() => showSaveToast('✓ Salvo localmente'));
+
+    // Extract only the keys for THIS new chapter's pages
+    const newPdfRef = document.getElementById('newChPdf').value.trim();
+    const newPageKeys = [];
+    if (newPdfRef.startsWith('__pages__')) {
+      try {
+        const defs = JSON.parse(newPdfRef.replace('__pages__', ''));
+        defs.forEach(d => { if (d.type === 'idb' && d.key) newPageKeys.push(d.key); });
+      } catch(e) {}
     }
+
+    save();
+
+    // Upload ONLY this chapter's pages to Supabase
+    if (supaReady && newPageKeys.length > 0) {
+      showSaveToast('⏳ Enviando ' + newPageKeys.length + ' páginas...');
+      syncSpecificPages(newPageKeys)
+        .then(() => showSaveToast('✓ Capítulo salvo!'))
+        .catch(() => showSaveToast('✓ Salvo localmente'));
+    }
+
     document.getElementById('newChNum').value = '';
     document.getElementById('newChTitle').value = '';
     document.getElementById('newChDate').value = '';
@@ -3692,10 +3731,25 @@
       date: document.getElementById('echDate').value.trim(),
       pdf: document.getElementById('echPdf').value.trim()
     };
+
+    // Extract only keys for newly added pages in this edit
+    const echPdfRef = document.getElementById('echPdf').value.trim();
+    const echPageKeys = [];
+    if (echPdfRef.startsWith('__pages__')) {
+      try {
+        const defs = JSON.parse(echPdfRef.replace('__pages__', ''));
+        defs.forEach(d => { if (d.type === 'idb' && d.key) echPageKeys.push(d.key); });
+      } catch(e) {}
+    }
+
     save();
-    if (supaReady) {
-      showSaveToast('⏳ Enviando páginas...');
-      syncPagesToSupabase().then(() => showSaveToast('✓ Capítulo salvo!')).catch(() => showSaveToast('✓ Salvo localmente'));
+    if (supaReady && echPageKeys.length > 0) {
+      showSaveToast('⏳ Enviando ' + echPageKeys.length + ' páginas...');
+      syncSpecificPages(echPageKeys)
+        .then(() => showSaveToast('✓ Capítulo salvo!'))
+        .catch(() => showSaveToast('✓ Salvo localmente'));
+    } else if (supaReady) {
+      showSaveToast('✓ Capítulo salvo!');
     }
     document.getElementById('editChapterModal').classList.remove('open');
     rerenderChapters(m);
