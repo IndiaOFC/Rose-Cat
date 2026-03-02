@@ -2425,7 +2425,7 @@
     const row = document.createElement('div');
     row.className = 'chapter-row';
     row.style.cssText = 'display:flex;align-items:center;';
-    row.onclick = function() { openPdf(ch.pdf, ch.num + ': ' + ch.title); };
+    row.onclick = function() { openPdf(ch.pdf, ch.num + ': ' + ch.title, sid, ci); };
 
     const numSpan = document.createElement('span');
     numSpan.className = 'chapter-num';
@@ -2657,9 +2657,10 @@
     return url;
   }
 
-  function openPdf(url, title) {
+  function openPdf(url, title, mangaId, chapterIdx) {
     const pdfContent = document.getElementById('pdfContent');
     document.getElementById('pdfTitle').textContent = title;
+    window._readerContext = { mangaId: mangaId || null, chapterIdx: parseInt(chapterIdx) || 0 };
 
     if (!url || url.trim() === '') {
       pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">📄</div><p>Capítulo sem páginas vinculadas.</p></div>';
@@ -2729,56 +2730,47 @@
   function openPageReader(pages, title, container) {
     window._pageReader = { pages: pages, current: 0, mode: 'scroll' };
 
+    function buildChapterNavBar(area, position) {
+      const ctx = window._readerContext;
+      if (!ctx || !ctx.mangaId) return;
+      const m = mangas.find(x => String(x.id) === String(ctx.mangaId));
+      if (!m || !m.chapters) return;
+      const ci = ctx.chapterIdx;
+      const hasPrev = ci > 0;
+      const hasNext = ci < m.chapters.length - 1;
+      if (!hasPrev && !hasNext) return;
+
+      const bar = document.createElement('div');
+      bar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;width:100%;max-width:900px;padding:1rem 0.5rem;gap:1rem;box-sizing:border-box;' + (position === 'top' ? 'padding-top:1.5rem;' : 'padding-bottom:2rem;');
+
+      if (hasPrev) {
+        const btn = document.createElement('button');
+        btn.textContent = '\u2039 Cap. ' + m.chapters[ci - 1].num;
+        btn.style.cssText = 'background:none;border:1px solid var(--border);color:var(--white);font-family:Share Tech Mono,monospace;font-size:0.75rem;padding:0.6rem 1.2rem;cursor:pointer;flex:1;';
+        btn.onclick = function() { openPdf(m.chapters[ci-1].pdf, m.chapters[ci-1].num+': '+m.chapters[ci-1].title, ctx.mangaId, ci-1); };
+        bar.appendChild(btn);
+      } else {
+        bar.appendChild(document.createElement('div'));
+      }
+
+      if (hasNext) {
+        const btn = document.createElement('button');
+        btn.textContent = 'Cap. ' + m.chapters[ci + 1].num + ' \u203a';
+        btn.style.cssText = 'background:none;border:1px solid rgba(200,39,58,0.6);color:#e05060;font-family:Share Tech Mono,monospace;font-size:0.75rem;padding:0.6rem 1.2rem;cursor:pointer;flex:1;';
+        btn.onclick = function() { openPdf(m.chapters[ci+1].pdf, m.chapters[ci+1].num+': '+m.chapters[ci+1].title, ctx.mangaId, ci+1); };
+        bar.appendChild(btn);
+      }
+
+      area.appendChild(bar);
+    }
+
     function build() {
       container.innerHTML = '';
       container.style.cssText = 'flex:1;display:flex;flex-direction:column;overflow:hidden;height:0;';
-
-      // Nav bar
-      const nav = document.createElement('div');
-      nav.id = 'readerNav';
-      nav.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:0.5rem 1.2rem;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;gap:0.75rem;';
-
-      const leftBtn = document.createElement('button');
-      leftBtn.id = 'navPrev';
-      leftBtn.textContent = '‹ Anterior';
-      leftBtn.style.cssText = 'background:none;border:1px solid var(--border);color:var(--white);font-family:Share Tech Mono,monospace;font-size:0.8rem;padding:0.4rem 1rem;cursor:pointer;white-space:nowrap;';
-      leftBtn.onclick = function() { pageReaderGo(-1); };
-
-      const pageNum = document.createElement('span');
-      pageNum.id = 'pageNum';
-      pageNum.style.cssText = 'font-family:Share Tech Mono,monospace;font-size:0.75rem;color:var(--muted);white-space:nowrap;flex:1;text-align:center;';
-      pageNum.textContent = 'Página 1 / ' + pages.length;
-
-      const modeBtn = document.createElement('button');
-      modeBtn.id = 'modeBtn';
-      modeBtn.textContent = '📄 Página';
-      modeBtn.title = 'Alternar modo de leitura';
-      modeBtn.style.cssText = 'background:none;border:1px solid var(--gold-dim, #c9a84c);color:var(--gold, #c9a84c);font-family:Share Tech Mono,monospace;font-size:0.75rem;padding:0.4rem 0.8rem;cursor:pointer;white-space:nowrap;';
-      modeBtn.onclick = function() {
-        const r = window._pageReader;
-        r.mode = r.mode === 'scroll' ? 'page' : 'scroll';
-        modeBtn.textContent = r.mode === 'scroll' ? '📄 Página' : '↕ Scroll';
-        renderContent();
-      };
-
-      const rightBtn = document.createElement('button');
-      rightBtn.id = 'navNext';
-      rightBtn.textContent = 'Próxima ›';
-      rightBtn.style.cssText = 'background:none;border:1px solid var(--border);color:var(--white);font-family:Share Tech Mono,monospace;font-size:0.8rem;padding:0.4rem 1rem;cursor:pointer;white-space:nowrap;';
-      rightBtn.onclick = function() { pageReaderGo(1); };
-
-      nav.appendChild(leftBtn);
-      nav.appendChild(pageNum);
-      nav.appendChild(modeBtn);
-      nav.appendChild(rightBtn);
-      container.appendChild(nav);
-
-      // Content area
       const scrollArea = document.createElement('div');
       scrollArea.id = 'pageScrollArea';
       scrollArea.style.cssText = 'flex:1;overflow-y:auto;background:#0a0a0f;display:flex;flex-direction:column;align-items:center;';
       container.appendChild(scrollArea);
-
       renderContent();
     }
 
@@ -2789,55 +2781,25 @@
       area.innerHTML = '';
       area.scrollTop = 0;
 
-      const navPrev = document.getElementById('navPrev');
-      const navNext = document.getElementById('navNext');
-      const pageNum = document.getElementById('pageNum');
-
       if (r.mode === 'scroll') {
-        // Show ALL pages stacked
-        if (navPrev) navPrev.style.display = 'none';
-        if (navNext) navNext.style.display = 'none';
-        if (pageNum) pageNum.textContent = 'Página 1 / ' + pages.length;
-
+        buildChapterNavBar(area, 'top');
         pages.forEach(function(src, i) {
           const img = document.createElement('img');
           img.src = src;
           img.style.cssText = 'width:100%;max-width:900px;display:block;image-rendering:auto;';
           img.draggable = false;
-          img.dataset.pageIndex = i;
           area.appendChild(img);
         });
-
-        // IntersectionObserver to update page counter as user scrolls
-        const observer = new IntersectionObserver(function(entries) {
-          let topmost = null;
-          entries.forEach(function(entry) {
-            if (entry.isIntersecting) {
-              const idx = parseInt(entry.target.dataset.pageIndex);
-              if (topmost === null || idx < topmost) topmost = idx;
-            }
-          });
-          if (topmost !== null) {
-            const el = document.getElementById('pageNum');
-            if (el) el.textContent = 'Página ' + (topmost + 1) + ' / ' + pages.length;
-          }
-        }, { root: area, threshold: 0.3 });
-
-        area.querySelectorAll('img').forEach(function(img) {
-          observer.observe(img);
-        });
+        buildChapterNavBar(area, 'bottom');
       } else {
-        // Page mode - single image
-        if (navPrev) navPrev.style.display = '';
-        if (navNext) navNext.style.display = '';
-        if (pageNum) pageNum.textContent = 'Página ' + (r.current + 1) + ' / ' + pages.length;
         const img = document.createElement('img');
         img.id = 'pageImg';
         img.src = pages[r.current];
         img.style.cssText = 'width:100%;max-width:900px;display:block;cursor:pointer;padding:1.5rem 0;image-rendering:auto;';
-        img.title = 'Clique para próxima página';
+        img.title = 'Clique para pr\u00f3xima p\u00e1gina';
         img.onclick = function() { pageReaderGo(1); };
         area.appendChild(img);
+        if (r.current === pages.length - 1) buildChapterNavBar(area, 'bottom');
       }
     }
 
@@ -2848,18 +2810,16 @@
       if (next === r.current) return;
       r.current = next;
       const img = document.getElementById('pageImg');
+      const area = document.getElementById('pageScrollArea');
       if (img) {
         img.style.opacity = '0';
         img.src = r.pages[r.current];
         img.onload = function() { img.style.transition = 'opacity 0.15s'; img.style.opacity = '1'; };
+        if (r.current === r.pages.length - 1 && area) buildChapterNavBar(area, 'bottom');
       }
-      const numEl = document.getElementById('pageNum');
-      if (numEl) numEl.textContent = 'Página ' + (r.current + 1) + ' / ' + r.pages.length;
-      const area = document.getElementById('pageScrollArea');
       if (area) area.scrollTop = 0;
     };
 
-    // Keyboard nav
     document.onkeydown = function(e) {
       const modal = document.getElementById('pdfModal');
       if (!modal || !modal.classList.contains('open')) return;
@@ -4015,4 +3975,3 @@
 </div>
 
 </body>
-</html>
