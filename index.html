@@ -576,28 +576,22 @@
   }
 
   .chapters-label {
-    font-size: 0.82rem;
+    font-size: 0.7rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     display: flex;
     align-items: center;
-    background: linear-gradient(90deg, #c8273a, #9b59b6, #4a7fd4, #f1c40f, #c8273a);
-    background-size: 300% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    background:#c8273a !important;
-    font-family: 'Cinzel Decorative', serif;
-    font-weight: 700;
-    gap: 0.5rem;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+    gap: 0.75rem;
   }
 
   .chapters-label::after {
     content: '';
     flex: 1;
     height: 1px;
-    background: var(--border);
+    background: rgba(200,39,58,0.3);
   }
 
   .chapters-list {
@@ -618,10 +612,26 @@
     gap: 0.75rem;
     padding: 0.6rem 0.75rem;
     background: var(--bg);
-    border: 1px solid transparent;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-top: none;
+    border-left: none;
+    border-right: none;
     cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
+    transition: background 0.15s;
     text-decoration: none;
+  }
+  .chapter-row:hover {
+    background: var(--bg2);
+  }
+  .chapter-row .ch-actions {
+    display: flex;
+    gap: 0.1rem;
+    opacity: 0;
+    transition: opacity 0.15s;
+    margin-left: auto;
+  }
+  .chapter-row:hover .ch-actions {
+    opacity: 1;
   }
 
   .chapter-row:hover {
@@ -653,13 +663,13 @@
   }
 
   .chapter-pdf-icon {
-    font-size: 1.1rem;
-    background: linear-gradient(90deg, #c8273a, #9b59b6, #4a7fd4, #f1c40f, #c8273a);
-    background-size: 300% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    background:#c8273a !important;
+    font-size: 0.6rem;
+    color: rgba(200,39,58,0.4);
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+  .chapter-row:hover .chapter-pdf-icon {
+    color: rgba(200,39,58,0.8);
   }
 
   .modal-close {
@@ -2656,7 +2666,7 @@
 
     const pdfIcon = document.createElement('span');
     pdfIcon.className = 'chapter-pdf-icon';
-    pdfIcon.textContent = '⬇';
+    pdfIcon.textContent = '›';
 
     row.appendChild(numSpan);
     row.appendChild(titleSpan);
@@ -2667,17 +2677,24 @@
       const del = document.createElement('span');
       del.textContent = '✕';
       del.title = 'Deletar capítulo';
-      del.style.cssText = 'color:#c8273a;font-size:0.7rem;padding:0.15rem 0.5rem;border:1px solid #c8273a;cursor:pointer;margin-left:0.25rem;flex-shrink:0;';
+      del.style.cssText = 'color:rgba(200,39,58,0.5);font-size:0.75rem;padding:0.2rem 0.4rem;border:none;background:none;cursor:pointer;margin-left:0.1rem;flex-shrink:0;opacity:0.6;transition:opacity 0.15s,color 0.15s;';
+      del.onmouseenter = function() { del.style.opacity='1'; del.style.color='#c8273a'; };
+      del.onmouseleave = function() { del.style.opacity='0.6'; del.style.color='rgba(200,39,58,0.5)'; };
       del.onclick = function(e) { e.stopPropagation(); deleteChapter(sid, ci); };
 
       const edit = document.createElement('span');
       edit.textContent = '✎';
       edit.title = 'Editar capítulo';
-      edit.style.cssText = 'font-size:0.85rem;padding:0.15rem 0.4rem;cursor:pointer;margin-left:0.25rem;flex-shrink:0;color:#c8273a;border:none;';
+      edit.style.cssText = 'font-size:0.8rem;padding:0.2rem 0.4rem;cursor:pointer;margin-left:0.1rem;flex-shrink:0;color:rgba(200,39,58,0.5);border:none;background:none;opacity:0.6;transition:opacity 0.15s,color 0.15s;';
+      edit.onmouseenter = function() { edit.style.opacity='1'; edit.style.color='#c8273a'; };
+      edit.onmouseleave = function() { edit.style.opacity='0.6'; edit.style.color='rgba(200,39,58,0.5)'; };
       edit.onclick = function(e) { e.stopPropagation(); openEditChapter(sid, ci); };
 
-      row.appendChild(edit);
-      row.appendChild(del);
+      const actions = document.createElement('div');
+      actions.className = 'ch-actions';
+      actions.appendChild(edit);
+      actions.appendChild(del);
+      row.appendChild(actions);
     }
     return row;
   }
