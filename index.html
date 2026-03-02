@@ -52,8 +52,6 @@
     );
     pointer-events: none;
     z-index: 1000;
-    will-change: auto;
-    transform: translateZ(0);
   }
 
   /* Mobile: remove scanlines + noise - they cause compositing on every zoom/scroll frame */
@@ -71,7 +69,25 @@
     display: none;
   }
 
-  /* removed - now handled above */
+  /* Respect OS reduced-motion setting */
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  /* Desktop: optimize compositing — only animate transform/opacity (GPU-only props) */
+  .manga-card { isolation: isolate; }
+  .manga-card:hover .card-overlay { opacity: 1; }
+  .modal-backdrop.open, .pdf-modal-backdrop.open { will-change: opacity; }
+
+  /* Sidebar: GPU-only transition */
+  .sidebar { transition: transform 0.2s ease !important; }
+
+    /* Touch device: kill everything expensive */
+  html.is-touch * { animation: none !important; }
+  html.is-touch .logo { text-shadow: none !important; }
+  html.is-touch .manga-card { box-shadow: none !important; transform: none !important; contain: layout style paint; }
+
+/* removed - now handled above */
 
   /* HEADER */
   header {
@@ -276,6 +292,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 1.25rem;
+    contain: layout;
   }
 
   .manga-card {
@@ -351,7 +368,8 @@
     inset: 0;
     background: linear-gradient(to bottom, transparent 40%, rgba(10,10,15,0.97) 100%);
     opacity: 0;
-    transition: opacity 0.3s;
+    transition: opacity 0.2s;
+    will-change: opacity;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -464,7 +482,7 @@
     height: 3px;
     background: linear-gradient(90deg, #c8273a, #9b59b6, #4a7fd4, #f1c40f, #c8273a);
     background-size: 300% auto;
-    animation: modalRgb 20s linear infinite;
+    animation: modalRgb 40s linear infinite;
   }
 
   @keyframes modalRgb {
@@ -569,7 +587,7 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    animation: modalRgb 20s linear infinite;
+    animation: modalRgb 40s linear infinite;
     font-family: 'Cinzel Decorative', serif;
     font-weight: 700;
     gap: 0.5rem;
@@ -641,7 +659,7 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    animation: modalRgb 20s linear infinite;
+    animation: modalRgb 40s linear infinite;
   }
 
   .modal-close {
@@ -983,7 +1001,7 @@
   }
 
   .section-title-rgb {
-    animation: rgbShift 8s ease-in-out infinite;
+    animation: rgbShift 12s ease-in-out infinite;
     background: linear-gradient(90deg, #ff2a45, #ffd700, #ff2a45);
     background-size: 200% auto;
     -webkit-background-clip: text;
@@ -997,7 +1015,7 @@
     font-size: 1.4rem;
     letter-spacing: 0.2em;
     font-weight: 700;
-    animation: rgbShift 4s ease-in-out infinite;
+    animation: rgbShift 12s ease-in-out infinite;
     background: linear-gradient(90deg, #ff2a45, #ffd700, #ff2a45);
     background-size: 200% auto;
     -webkit-background-clip: text;
@@ -1100,7 +1118,7 @@
     color: var(--gold);
     text-transform: uppercase;
     margin-bottom: 0.6rem;
-    animation: rgbShift 4s ease-in-out infinite;
+    animation: rgbShift 12s ease-in-out infinite;
     background: linear-gradient(90deg, #ff2a45, #ffd700, #ff2a45);
     background-size: 200% auto;
     -webkit-background-clip: text;
@@ -1472,47 +1490,86 @@
 
   /* ── MOBILE PERFORMANCE ─────────────────────────────────────────── */
   @media (max-width: 768px) {
-    /* Kill all infinite gradient animations - biggest GPU drain */
+
+    /* 1. KILL ALL INFINITE ANIMATIONS — biggest GPU drain on mobile */
+    * {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    /* Allow only essential one-shot transitions */
+    .modal-backdrop,
+    .pdf-modal-backdrop,
+    .sidebar-backdrop,
+    .sidebar {
+      transition: opacity 0.15s ease, transform 0.15s ease !important;
+    }
+
+    /* 2. KILL backdrop-filter — very expensive on mobile GPUs */
+    .modal-backdrop,
+    .pdf-modal-backdrop,
+    .sidebar-backdrop {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      background: rgba(0,0,0,0.85) !important;
+    }
+
+    /* 3. KILL box-shadow on cards — causes repaint on scroll */
+    .manga-card,
+    .manga-card:hover {
+      box-shadow: none !important;
+      transform: none !important;
+      will-change: auto !important;
+    }
+
+    /* 4. KILL text-shadow — cheap on desktop, slow on mobile */
+    .logo, h1, h2, h3 {
+      text-shadow: none !important;
+    }
+
+    /* 5. Static RGB elements */
     .section-title-rgb,
+    .logo-rgb,
+    .sidebar-label,
     .modal-title,
     [style*="rgbShift"],
-    [style*="modalRgb"] {
+    [style*="modalRgb"],
+    [style*="hue-rotate"] {
       animation: none !important;
       background: none !important;
       -webkit-background-clip: unset !important;
       -webkit-text-fill-color: unset !important;
+      background-clip: unset !important;
       color: var(--red) !important;
+      filter: none !important;
     }
-    /* Stop moving borders */
+
+    /* RGB lines → static red */
     .modal-rgb-line,
     .add-modal-rgb-line,
     #modalCapitulosRgb,
     #editModalLine,
-    .detail-rgb-line {
+    .detail-rgb-line,
+    [style*="background-size:300%"],
+    [style*="background-size: 300%"] {
       animation: none !important;
       background: var(--red) !important;
+      background-size: auto !important;
     }
-    /* Static neon button instead of pulsing */
-    #admAddBtn {
-      animation: none !important;
-      box-shadow: 0 0 8px rgba(200,39,58,0.4) !important;
-    }
-    /* GPU hint for scrollable areas */
-    main, .modal, .add-modal {
-      -webkit-overflow-scrolling: touch;
-      transform: translateZ(0);
-    }
-    /* Contain card layout */
+
+    /* 6. Contain layout for grid items */
     .manga-card {
-      contain: layout style;
-      will-change: auto;
+      contain: layout style paint;
     }
-    .manga-card:hover {
-      transform: none !important;
+
+    /* 7. Smooth touch scroll */
+    main, .add-modal, .modal-backdrop {
+      -webkit-overflow-scrolling: touch;
     }
-    /* Simpler card overlay */
-    .manga-card:hover .card-overlay {
-      opacity: 1;
+
+    /* 8. Static add button */
+    #admAddBtn {
+      box-shadow: 0 0 8px rgba(200,39,58,0.4) !important;
     }
   }
 
@@ -1967,7 +2024,7 @@
   <div class="modal">
     <div class="modal-deco"></div>
     <button class="modal-close" onclick="closeDetailModal()">✕</button>
-    <button id="modalEditBtn" onclick="openEditFromDetail()" style="display:none;position:absolute;top:0.75rem;right:3rem;background:none;border:none;cursor:pointer;font-size:1rem;padding:0.25rem 0.5rem;background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 20s linear infinite;" title="Editar mangá">✎</button>
+    <button id="modalEditBtn" onclick="openEditFromDetail()" style="display:none;position:absolute;top:0.75rem;right:3rem;background:none;border:none;cursor:pointer;font-size:1rem;padding:0.25rem 0.5rem;background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 40s linear infinite;" title="Editar mangá">✎</button>
     <div id="modalBanner" style="display:none;width:100%;height:120px;background-size:cover;background-position:center;margin-bottom:0;border-bottom:1px solid var(--border);"></div>
     <div class="modal-header">
       <div class="modal-cover" id="modalCoverEl">📖</div>
@@ -2003,7 +2060,7 @@
 <div class="modal-backdrop" id="addModal">
   <div class="add-modal">
     <button class="modal-close" onclick="closeAddModal()">✕</button>
-    <h2 style="background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 20s linear infinite;">Adicionar</h2>
+    <h2 style="background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 40s linear infinite;">Adicionar</h2>
     <div class="form-row">
       <div class="form-group">
         <label>Título</label>
@@ -2610,7 +2667,7 @@
       const edit = document.createElement('span');
       edit.textContent = '✎';
       edit.title = 'Editar capítulo';
-      edit.style.cssText = 'font-size:0.85rem;padding:0.15rem 0.4rem;cursor:pointer;margin-left:0.25rem;flex-shrink:0;background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 20s linear infinite;border:none;';
+      edit.style.cssText = 'font-size:0.85rem;padding:0.15rem 0.4rem;cursor:pointer;margin-left:0.25rem;flex-shrink:0;background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 40s linear infinite;border:none;';
       edit.onclick = function(e) { e.stopPropagation(); openEditChapter(sid, ci); };
 
       row.appendChild(edit);
@@ -3910,6 +3967,26 @@
     }
   }
 
+  // Mobile perf: strip all inline animations on touch devices immediately
+  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    document.documentElement.classList.add('is-touch');
+    // After DOM ready, strip inline animation styles from all elements
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('[style*="animation"]').forEach(function(el) {
+        el.style.animation = 'none';
+      });
+      document.querySelectorAll('[style*="background-size:300%"],[style*="background-size: 300%"]').forEach(function(el) {
+        el.style.animation = 'none';
+        el.style.backgroundSize = 'auto';
+        el.style.webkitTextFillColor = '';
+        el.style.webkitBackgroundClip = '';
+        el.style.backgroundClip = '';
+        el.style.background = '#c8273a';
+        el.style.color = '#c8273a';
+      });
+    });
+  }
+
   async function initApp() {
     if (supaReady) {
       // Supabase disponível: busca direto dele (fonte de verdade)
@@ -3987,7 +4064,7 @@
 <div class="modal-backdrop" id="editModal">
   <div class="add-modal">
     <button class="modal-close" onclick="closeEditModal()">✕</button>
-    <h2 style="background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 20s linear infinite;">Editar</h2>
+    <h2 style="background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 40s linear infinite;">Editar</h2>
     <input type="hidden" id="editId">
     <div class="form-row">
       <div class="form-group">
@@ -4119,8 +4196,8 @@
 <!-- ADM MODAL -->
 <div class="modal-backdrop" id="admModal" style="display:none;">
   <div style="background:var(--bg2);border:1px solid rgba(200,39,58,0.4);padding:2rem;width:100%;max-width:340px;position:relative;animation:modalIn 0.2s ease-out;">
-    <div style="height:2px;background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;animation:modalRgb 20s linear infinite;margin-bottom:1.25rem;"></div>
-    <div style="font-family:'Cinzel Decorative',serif;font-size:0.82rem;letter-spacing:0.2em;background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 20s linear infinite;margin-bottom:1rem;font-weight:700;">ACESSO RESTRITO</div>
+    <div style="height:2px;background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;animation:modalRgb 40s linear infinite;margin-bottom:1.25rem;"></div>
+    <div style="font-family:'Cinzel Decorative',serif;font-size:0.82rem;letter-spacing:0.2em;background:linear-gradient(90deg,#c8273a,#9b59b6,#4a7fd4,#f1c40f,#c8273a);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:modalRgb 40s linear infinite;margin-bottom:1rem;font-weight:700;">ACESSO RESTRITO</div>
     <div style="font-family:'Cormorant Garamond',serif;font-size:0.85rem;color:var(--muted);margin-bottom:1rem;">Digite o código de acesso:</div>
     <input id="admCodeInput" type="password"
       style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--white);font-family:'Share Tech Mono',monospace;font-size:1rem;padding:0.6rem 0.75rem;outline:none;letter-spacing:0.2em;margin-bottom:0.75rem;"
