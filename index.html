@@ -2085,49 +2085,50 @@
       const idb = await openPdfDB();
       const tx = idb.transaction('pdfs', 'readonly');
       const store = tx.objectStore('pdfs');
-      const keys = await new Promise((res, rej) => {
+      const allKeys = await new Promise((res, rej) => {
         const req = store.getAllKeys();
         req.onsuccess = () => res(req.result);
         req.onerror = () => rej(req.error);
       });
 
+      if (allKeys.length === 0) return;
+
+      // Check which keys are already in Supabase
       const client = (supaWrite || supa);
+      const { data: existing } = await client.from('pages').select('key').in('key', allKeys);
+      const existingSet = new Set((existing || []).map(r => r.key));
+      const newKeys = allKeys.filter(k => !existingSet.has(k));
+
+      if (newKeys.length === 0) {
+        console.log('[RoseCat] Páginas já sincronizadas, nada novo.');
+        return;
+      }
+
+      console.log(`[RoseCat] Enviando ${newKeys.length} páginas novas...`);
       let uploaded = 0, skipped = 0;
-      for (const key of keys) {
+
+      for (const key of newKeys) {
         try {
           let data = await getPdf(key);
           if (!data) continue;
 
-          // Compress if too large before uploading
+          // Compress if too large
           const sizeKB = Math.round(data.length * 0.75 / 1024);
           if (sizeKB > 700 && data.startsWith('data:image')) {
-            console.log('[RoseCat] Comprimindo página grande:', key, sizeKB + 'KB');
-            try { data = await compressImage(data, 700, 0.78); } catch(e) {}
+            data = await compressImage(data, 700, 0.78);
+            await savePdf(key, data); // update local compressed version
           }
 
-          // Skip non-image data that is still too large
           const finalKB = Math.round(data.length * 0.75 / 1024);
-          if (finalKB > 900) {
-            console.warn('[RoseCat] Página ainda grande demais:', key, finalKB + 'KB');
-            skipped++;
-            continue;
-          }
+          if (finalKB > 900) { skipped++; continue; }
 
           const { error } = await client.from('pages').upsert({ key, data });
-          if (error) {
-            console.warn('[RoseCat] Erro ao salvar página:', key, error.message);
-            skipped++;
-          } else {
-            // Update local IDB with compressed version
-            if (sizeKB > 700) await savePdf(key, data);
-            uploaded++;
-          }
+          if (error) { skipped++; } else { uploaded++; }
         } catch(e) {
-          console.warn('[RoseCat] Erro página:', key, e);
           skipped++;
         }
       }
-      console.log(`[RoseCat] Páginas sync: ${uploaded} enviadas, ${skipped} puladas`);
+      console.log(`[RoseCat] Páginas sync: ${uploaded} novas enviadas, ${skipped} puladas`);
     } catch(e) {
       console.warn('Pages sync error:', e);
     }
@@ -2745,7 +2746,7 @@
 
       if (hasPrev) {
         const btn = document.createElement('button');
-        btn.textContent = '\u2039 Cap. ' + m.chapters[ci - 1].num;
+        btn.textContent = '\u2039 Anterior';
         btn.style.cssText = 'background:none;border:1px solid var(--border);color:var(--white);font-family:Share Tech Mono,monospace;font-size:0.75rem;padding:0.6rem 1.2rem;cursor:pointer;flex:1;';
         btn.onclick = function() { openPdf(m.chapters[ci-1].pdf, m.chapters[ci-1].num+': '+m.chapters[ci-1].title, ctx.mangaId, ci-1); };
         bar.appendChild(btn);
@@ -2755,7 +2756,7 @@
 
       if (hasNext) {
         const btn = document.createElement('button');
-        btn.textContent = 'Cap. ' + m.chapters[ci + 1].num + ' \u203a';
+        btn.textContent = 'Pr\u00f3ximo \u203a';
         btn.style.cssText = 'background:none;border:1px solid rgba(200,39,58,0.6);color:#e05060;font-family:Share Tech Mono,monospace;font-size:0.75rem;padding:0.6rem 1.2rem;cursor:pointer;flex:1;';
         btn.onclick = function() { openPdf(m.chapters[ci+1].pdf, m.chapters[ci+1].num+': '+m.chapters[ci+1].title, ctx.mangaId, ci+1); };
         bar.appendChild(btn);
@@ -3069,8 +3070,11 @@
       pdf: document.getElementById('newChPdf').value.trim()
     });
     save();
-    // Auto-sync pages to Supabase immediately (don't wait)
-    if (supaReady) syncPagesToSupabase().catch(e => console.warn('Auto-sync fail:', e));
+    // Upload pages to Supabase synchronously - show progress
+    if (supaReady) {
+      showSaveToast('⏳ Enviando páginas...');
+      syncPagesToSupabase().then(() => showSaveToast('✓ Capítulo salvo!')).catch(() => showSaveToast('✓ Salvo localmente'));
+    }
     document.getElementById('newChNum').value = '';
     document.getElementById('newChTitle').value = '';
     document.getElementById('newChDate').value = '';
@@ -3609,7 +3613,10 @@
       pdf: document.getElementById('echPdf').value.trim()
     };
     save();
-    if (supaReady) syncPagesToSupabase().catch(e => console.warn('Auto-sync fail:', e));
+    if (supaReady) {
+      showSaveToast('⏳ Enviando páginas...');
+      syncPagesToSupabase().then(() => showSaveToast('✓ Capítulo salvo!')).catch(() => showSaveToast('✓ Salvo localmente'));
+    }
     document.getElementById('editChapterModal').classList.remove('open');
     rerenderChapters(m);
   }
