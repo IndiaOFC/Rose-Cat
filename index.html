@@ -688,14 +688,25 @@
   .pdf-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.97);
+    background: #000;
     z-index: 600;
     display: none;
     flex-direction: column;
+    contain: strict;
   }
 
   .pdf-modal-backdrop.open {
     display: flex;
+  }
+
+  #pageScrollArea {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #pageScrollArea img {
+    contain: layout style;
+    display: block;
   }
 
   .pdf-toolbar {
@@ -2986,19 +2997,33 @@
 
       // Auto-hide on scroll down, show on scroll up
       let lastY = 0;
+      let accumulated = 0;
+      let ticking = false;
       scrollArea.addEventListener('scroll', function() {
-        const bar = document.getElementById('pageBar');
-        const toolbar = document.querySelector('.pdf-toolbar');
-        const delta = scrollArea.scrollTop - lastY;
-        if (delta > 40) {
-          if (bar) { bar.style.transform = 'translateY(-100%)'; bar.style.opacity = '0'; }
-          if (toolbar) toolbar.classList.add('hidden');
-        } else if (delta < -10 || scrollArea.scrollTop < 60) {
-          if (bar) { bar.style.transform = ''; bar.style.opacity = '1'; }
-          if (toolbar) toolbar.classList.remove('hidden');
-        }
-        lastY = scrollArea.scrollTop;
-      });
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(function() {
+          const bar = document.getElementById('pageBar');
+          const toolbar = document.querySelector('.pdf-toolbar');
+          const delta = scrollArea.scrollTop - lastY;
+          accumulated += delta;
+
+          if (accumulated > 80) {
+            // scrolled down enough → hide
+            accumulated = 0;
+            if (bar) { bar.style.transform = 'translateY(-100%)'; bar.style.opacity = '0'; }
+            if (toolbar) toolbar.classList.add('hidden');
+          } else if (accumulated < -80 || scrollArea.scrollTop < 80) {
+            // scrolled up enough → show
+            accumulated = 0;
+            if (bar) { bar.style.transform = ''; bar.style.opacity = '1'; }
+            if (toolbar) toolbar.classList.remove('hidden');
+          }
+
+          lastY = scrollArea.scrollTop;
+          ticking = false;
+        });
+      }, { passive: true });
 
       renderContent();
     }
