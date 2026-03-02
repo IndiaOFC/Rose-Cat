@@ -700,6 +700,7 @@
 
   .pdf-toolbar {
     height: 50px;
+    overflow: hidden;
     background: var(--bg2);
     border-bottom: 1px solid var(--border);
     display: flex;
@@ -707,6 +708,14 @@
     padding: 0 1.5rem;
     gap: 1rem;
     flex-shrink: 0;
+    transition: height 0.25s ease, opacity 0.25s ease, padding 0.25s ease;
+  }
+  .pdf-toolbar.hidden {
+    height: 0 !important;
+    opacity: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    border-bottom-width: 0 !important;
   }
 
   .pdf-toolbar-title {
@@ -2975,11 +2984,36 @@
 
     function build() {
       container.innerHTML = '';
-      container.style.cssText = 'flex:1;display:flex;flex-direction:column;overflow:hidden;height:0;';
+      container.style.cssText = 'flex:1;display:flex;flex-direction:column;overflow:hidden;height:0;position:relative;';
+
+      // Page counter bar (auto-hides on scroll down)
+      const pageBar = document.createElement('div');
+      pageBar.id = 'pageBar';
+      pageBar.style.cssText = 'position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:0.4rem 1rem;background:rgba(10,10,15,0.85);font-family:Share Tech Mono,monospace;font-size:0.72rem;color:var(--muted);letter-spacing:0.08em;transition:transform 0.25s ease,opacity 0.25s ease;pointer-events:none;';
+      pageBar.textContent = 'Página 1 / ' + pages.length;
+      container.appendChild(pageBar);
+
       const scrollArea = document.createElement('div');
       scrollArea.id = 'pageScrollArea';
       scrollArea.style.cssText = 'flex:1;overflow-y:auto;background:#0a0a0f;display:flex;flex-direction:column;align-items:center;';
       container.appendChild(scrollArea);
+
+      // Auto-hide on scroll down, show on scroll up
+      let lastY = 0;
+      scrollArea.addEventListener('scroll', function() {
+        const bar = document.getElementById('pageBar');
+        const toolbar = document.querySelector('.pdf-toolbar');
+        const delta = scrollArea.scrollTop - lastY;
+        if (delta > 40) {
+          if (bar) { bar.style.transform = 'translateY(-100%)'; bar.style.opacity = '0'; }
+          if (toolbar) toolbar.classList.add('hidden');
+        } else if (delta < -10 || scrollArea.scrollTop < 60) {
+          if (bar) { bar.style.transform = ''; bar.style.opacity = '1'; }
+          if (toolbar) toolbar.classList.remove('hidden');
+        }
+        lastY = scrollArea.scrollTop;
+      });
+
       renderContent();
     }
 
@@ -2999,8 +3033,26 @@
           img.src = src;
           img.style.cssText = 'width:100%;max-width:900px;display:block;image-rendering:auto;';
           img.draggable = false;
+          img.dataset.pageIndex = i;
           area.appendChild(img);
         });
+
+        // Track current page as user scrolls
+        const obs = new IntersectionObserver(function(entries) {
+          let top = null;
+          entries.forEach(function(e) {
+            if (e.isIntersecting) {
+              const n = parseInt(e.target.dataset.pageIndex);
+              if (top === null || n < top) top = n;
+            }
+          });
+          if (top !== null) {
+            const bar = document.getElementById('pageBar');
+            if (bar) bar.textContent = 'Página ' + (top + 1) + ' / ' + pages.length;
+          }
+        }, { root: area, threshold: 0.3 });
+        area.querySelectorAll('img[data-page-index]').forEach(function(img) { obs.observe(img); });
+
         buildChapterNavBar(area, 'bottom');
       } else {
         const img = document.createElement('img');
