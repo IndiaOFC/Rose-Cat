@@ -1509,10 +1509,76 @@
       gap: 0.4rem;
     }
   }
+  /* Confirm modal */
+  #confirmModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+  }
+  #confirmModal.open { display: flex; }
+  #confirmBox {
+    background: var(--bg2);
+    border: 1px solid rgba(200,39,58,0.5);
+    padding: 2rem 2rem 1.5rem;
+    max-width: 340px;
+    width: 90%;
+    text-align: center;
+  }
+  #confirmBox p {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    color: var(--white);
+    margin: 0 0 1.5rem;
+    line-height: 1.5;
+  }
+  #confirmBox p span {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+    margin-top: 0.4rem;
+    letter-spacing: 0.05em;
+  }
+  .confirm-btns { display: flex; gap: 0.75rem; justify-content: center; }
+  .confirm-btn-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    padding: 0.5rem 1.2rem;
+    cursor: pointer;
+  }
+  .confirm-btn-ok {
+    background: rgba(200,39,58,0.15);
+    border: 1px solid rgba(200,39,58,0.6);
+    color: #e05060;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    padding: 0.5rem 1.2rem;
+    cursor: pointer;
+  }
+  .confirm-btn-ok:hover { background: rgba(200,39,58,0.3); }
 
 </style>
 </head>
 <body>
+
+<div id="confirmModal">
+  <div id="confirmBox">
+    <p id="confirmMsg">Tem certeza?<span id="confirmSub"></span></p>
+    <div class="confirm-btns">
+      <button class="confirm-btn-cancel" onclick="confirmResolve(false)">✕ Cancelar</button>
+      <button class="confirm-btn-ok" onclick="confirmResolve(true)">✓ Deletar</button>
+    </div>
+  </div>
+</div>
 
 <div id="loadingScreen">
   <style>
@@ -3542,19 +3608,29 @@
     logo.style.outline = 'none';
   }
 
+  let _confirmResolve = null;
+  function showConfirm(msg, sub) {
+    document.getElementById('confirmMsg').childNodes[0].textContent = msg;
+    document.getElementById('confirmSub').textContent = sub || '';
+    document.getElementById('confirmModal').classList.add('open');
+    return new Promise(res => { _confirmResolve = res; });
+  }
+  function confirmResolve(val) {
+    document.getElementById('confirmModal').classList.remove('open');
+    if (_confirmResolve) { _confirmResolve(val); _confirmResolve = null; }
+  }
+
   function deleteManga(id) {
     if (!isAdm) return;
     const sid = String(id);
-    const before = mangas.length;
-    if (!confirm('Deletar este mangá?')) return;
-    mangas = mangas.filter(m => String(m.id) !== sid);
-    if (mangas.length === before) {
-      alert('Erro: mangá não encontrado. ID: ' + sid);
-      return;
-    }
-    save();
-    try { closeDetailModal(); } catch(e) {}
-    applyFilters();
+    const m = mangas.find(x => String(x.id) === sid);
+    showConfirm('Deletar este mangá?', m ? m.title : '').then(ok => {
+      if (!ok) return;
+      mangas = mangas.filter(m => String(m.id) !== sid);
+      save();
+      try { closeDetailModal(); } catch(e) {}
+      applyFilters();
+    });
   }
 
   function deleteChapter(mangaId, chapterIdx) {
@@ -3562,10 +3638,14 @@
     const sid = String(mangaId);
     const m = mangas.find(x => String(x.id) === sid);
     if (!m) return;
-    if (chapterIdx < 0 || chapterIdx >= m.chapters.length) return;
-    m.chapters.splice(chapterIdx, 1);
-    save();
-    rerenderChapters(m);
+    const ch = m.chapters[chapterIdx];
+    showConfirm('Deletar este capítulo?', ch ? 'Cap. ' + ch.num + ': ' + ch.title : '').then(ok => {
+      if (!ok) return;
+        if (chapterIdx < 0 || chapterIdx >= m.chapters.length) return;
+      m.chapters.splice(chapterIdx, 1);
+      save();
+      rerenderChapters(m);
+    });
   }
 
 
@@ -3629,6 +3709,10 @@
   async function deleteMangaFromDetail() {
     if (!isAdm) return;
     const sid = String(currentMangaId);
+    const m = mangas.find(x => String(x.id) === sid);
+    const ok = await showConfirm('Deletar este mangá?', m ? m.title : '');
+    if (!ok) return;
+
     mangas = mangas.filter(x => String(x.id) !== sid);
 
     // Salva localStorage IMEDIATAMENTE antes de qualquer coisa
