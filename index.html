@@ -2713,7 +2713,7 @@
       Promise.all(promises).then(function(srcs) {
         srcs = srcs.filter(Boolean);
         if (srcs.length === 0) {
-          pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">📡</div><p style="font-size:0.85rem;">Páginas não encontradas no servidor.<br><span style="opacity:0.6;font-size:0.75rem;">No navegador principal (ADM), clique em <b>↑ SYNC</b> no topo para sincronizar.</span></p></div>';
+          pdfContent.innerHTML = '<div class="pdf-placeholder"><div class="big-icon">📡</div><p style="font-size:0.85rem;">Páginas não encontradas no servidor.<br><span style="opacity:0.6;font-size:0.75rem;">O dono do site precisa abrir o site e entrar em modo ADM para sincronizar.</span></p></div>';
         } else {
           openPageReader(srcs, title, pdfContent);
         }
@@ -3556,6 +3556,7 @@
     _h(val).then(hash => {
       if (hash === _ak) {
         isAdm = true;
+        localStorage.setItem('__adm_session__', '1');
         const ab = document.getElementById('admAddBtn');
         if (ab) { ab.style.display = 'flex'; }
         document.getElementById('admModal').classList.remove('open');
@@ -3568,8 +3569,7 @@
         if (supaReady) {
           showSaveToast('⏳ Sincronizando páginas...');
           syncPagesToSupabase().then(() => showSaveToast('✓ Páginas sincronizadas!')).catch(() => {});
-        }
-      } else {
+        }      } else {
         document.getElementById('admError').style.display = 'block';
         document.getElementById('admCodeInput').value = '';
       }
@@ -3756,7 +3756,7 @@
         if (!error && rows && rows.length > 0) {
           // Carregar capas do Supabase
           const { data: pageRows } = await supa.from('pages').select('key, data');
-          if (pageRows) for (const p of pageRows) await savePdf(p.key, p.data);
+          if (pageRows) for (const p of pageRows) { if (p.key && p.data) await savePdf(p.key, p.data); }
 
           mangas = rows.map(r => r.data);
           for (const m of mangas) {
@@ -3769,6 +3769,20 @@
           try { localStorage.setItem('mangas', JSON.stringify(mangas)); } catch(e) {}
           console.log('[RoseCat] Carregado do Supabase:', mangas.length);
           hideLoading(); renderGrid(mangas); buildGenreList();
+
+          // Se sessão ADM salva, re-ativa e sincroniza páginas automaticamente
+          if (localStorage.getItem('__adm_session__') === '1') {
+            isAdm = true;
+            const ab = document.getElementById('admAddBtn');
+            if (ab) ab.style.display = 'flex';
+            applyFilters();
+            // Auto-sync silencioso em background
+            setTimeout(() => {
+              syncPagesToSupabase()
+                .then(() => showSaveToast('✓ Páginas sincronizadas!'))
+                .catch(() => {});
+            }, 1500);
+          }
           return;
 
         } else if (!error && rows && rows.length === 0) {
