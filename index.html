@@ -2142,22 +2142,17 @@
       if (!rows || rows.length === 0) { console.log('[RoseCat] Nenhum manga no Supabase ainda.'); return false; }
       console.log('[RoseCat] Carregados', rows.length, 'mangas do Supabase!');
 
-      const loaded = rows.map(r => r.data);
+      mangas = rows.map(r => r.data);
 
-      // Load ALL pages from Supabase into local IDB first
-      const { data: pageRows, error: pageErr } = await supa.from('pages').select('key, data');
-      if (pageRows && pageRows.length > 0) {
-        console.log('[RoseCat] Carregando', pageRows.length, 'páginas do Supabase...');
-        for (const p of pageRows) {
-          if (p.key && p.data) await savePdf(p.key, p.data);
+      // Only load cover keys on startup — chapter pages load on demand
+      const coverKeys = mangas.filter(m => m.cover && m.cover.startsWith('__idb__')).map(m => m.cover.replace('__idb__', ''));
+      if (coverKeys.length > 0) {
+        const { data: coverRows } = await supa.from('pages').select('key, data').in('key', coverKeys);
+        if (coverRows) {
+          console.log('[RoseCat]', coverRows.length, 'capas carregadas');
+          for (const p of coverRows) { if (p.key && p.data) await savePdf(p.key, p.data); }
         }
-        console.log('[RoseCat] Páginas carregadas no IDB!');
-      } else {
-        if (pageErr) console.warn('[RoseCat] Erro páginas:', pageErr.message);
-        else console.log('[RoseCat] Nenhuma página no Supabase ainda');
       }
-
-      mangas = loaded;
 
       // Restore __idb__ covers
       for (const m of mangas) {
@@ -3754,11 +3749,15 @@
         const { data: rows, error } = await supa.from('mangas').select('data').order('updated_at', { ascending: true });
 
         if (!error && rows && rows.length > 0) {
-          // Carregar capas do Supabase
-          const { data: pageRows } = await supa.from('pages').select('key, data');
-          if (pageRows) for (const p of pageRows) { if (p.key && p.data) await savePdf(p.key, p.data); }
-
           mangas = rows.map(r => r.data);
+
+          // Only load cover keys from Supabase on startup (chapter pages load on demand)
+          const coverKeys = mangas.filter(m => m.cover && m.cover.startsWith('__idb__')).map(m => m.cover.replace('__idb__', ''));
+          if (coverKeys.length > 0) {
+            const { data: coverRows } = await supa.from('pages').select('key, data').in('key', coverKeys);
+            if (coverRows) for (const p of coverRows) { if (p.key && p.data) await savePdf(p.key, p.data); }
+          }
+
           for (const m of mangas) {
             if (m.cover && m.cover.startsWith('__idb__')) {
               const d = await getPdf(m.cover.replace('__idb__',''));
