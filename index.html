@@ -2120,13 +2120,13 @@
 
       await Promise.all(pdfPromisesSync);
 
-      // Upload all IDB pages to Supabase FIRST
-      await syncPagesToSupabase();
-
-      // Upsert current mangas
+      // Upsert manga metadata FIRST (fast - doesn't depend on pages)
       for (const m of stripped) {
         await client.from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
       }
+
+      // Then sync pages in background (don't await - pages sync separately)
+      syncPagesToSupabase().catch(() => {});
 
       // Delete any mangas in Supabase that are no longer in local list
       const currentIds = stripped.map(m => String(m.id));
