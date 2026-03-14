@@ -3171,7 +3171,10 @@
             <span><span class="status-dot"></span>${m.year}</span>
             <span class="card-chapters">${m.chapters.length} cap.</span>
           </div>
-          ${m.status && statusLabels[m.status] ? `<div style="margin-top:0.35rem"><span style="font-size:0.6rem;letter-spacing:0.08em;color:${statusLabels[m.status].color};border:1px solid ${statusLabels[m.status].color}33;padding:0.15rem 0.4rem;background:${statusLabels[m.status].color}11;">${statusLabels[m.status].label}</span></div>` : ''}
+          <div style="margin-top:0.35rem;display:flex;flex-wrap:wrap;gap:0.25rem;">
+            ${m.tipo && {manga:'Mangá',manhwa:'Manhwa',manhua:'Manhua',comic:'Comic',webtoon:'Webtoon'}[m.tipo] ? `<span style="font-size:0.6rem;letter-spacing:0.08em;color:#7aafdf;border:1px solid #7aafdf44;padding:0.15rem 0.4rem;background:#7aafdf11;cursor:pointer;" onclick="event.stopPropagation();filterByTipoByName('${m.tipo}')">${{manga:'Mangá',manhwa:'Manhwa',manhua:'Manhua',comic:'Comic',webtoon:'Webtoon'}[m.tipo]}</span>` : ''}
+            ${m.status && statusLabels[m.status] ? `<span style="font-size:0.6rem;letter-spacing:0.08em;color:${statusLabels[m.status].color};border:1px solid ${statusLabels[m.status].color}33;padding:0.15rem 0.4rem;background:${statusLabels[m.status].color}11;cursor:pointer;" onclick="event.stopPropagation();sidebarFilter('${m.status}')">${statusLabels[m.status].label}</span>` : ''}
+          </div>
         </div>
       `;
       card.addEventListener('click', () => openDetail(m.id));
@@ -3375,14 +3378,18 @@
     const tagsEl = document.getElementById('modalTags');
     tagsEl.innerHTML = m.tags.map(t => `<span class="tag" style="cursor:pointer;" onclick="closeDetailModal();filterByGenreByName('${t}')">${t}</span>`).join('');
 
-    // Status badge
+    // Status + Tipo badge
     const statusBadge = document.getElementById('modalStatusBadge');
+    const tipoLabels = { manga:'Mangá', manhwa:'Manhwa', manhua:'Manhua', comic:'Comic', webtoon:'Webtoon' };
+    let badgeHtml = '';
+    if (m.tipo && tipoLabels[m.tipo]) {
+      badgeHtml += `<span style="color:#7aafdf;border:1px solid #7aafdf44;padding:0.15rem 0.5rem;background:#7aafdf11;margin-right:0.35rem;cursor:pointer;" onclick="closeDetailModal();filterByTipoByName('${m.tipo}')">${tipoLabels[m.tipo]}</span>`;
+    }
     if (m.status && statusLabels[m.status]) {
       const s = statusLabels[m.status];
-      statusBadge.innerHTML = `<span style="color:${s.color};border:1px solid ${s.color}44;padding:0.15rem 0.5rem;background:${s.color}11;">${s.label}</span>`;
-    } else {
-      statusBadge.innerHTML = '';
+      badgeHtml += `<span style="color:${s.color};border:1px solid ${s.color}44;padding:0.15rem 0.5rem;background:${s.color}11;cursor:pointer;" onclick="closeDetailModal();sidebarFilter('${m.status}')">${s.label}</span>`;
     }
+    statusBadge.innerHTML = badgeHtml;
 
     // Rating
     renderModalRating(m);
@@ -3860,6 +3867,17 @@
       if (el2) el2.classList.remove('active');
     });
     if (el) el.classList.add('active');
+    showPage('home');
+    applyFilters();
+  }
+
+  function filterByTipoByName(tipo) {
+    currentTipo = tipo;
+    const idMap = { all:'tlAll', manga:'tlManga', comic:'tlComic', manhwa:'tlManhwa', webtoon:'tlWebtoon', manhua:'tlManhua' };
+    ['tlAll','tlManga','tlComic','tlManhwa','tlWebtoon','tlManhua'].forEach(id => {
+      const el = safeClass(id); if (el) el.classList.remove('active');
+    });
+    const active = safeClass(idMap[tipo]); if (active) active.classList.add('active');
     showPage('home');
     applyFilters();
   }
