@@ -1148,6 +1148,43 @@
     transition: color 0.15s;
   }
   .chat-username-bar button:hover { color: var(--white); }
+  .chat-username-bar .chat-logout-btn { color: var(--muted); font-size:0.58rem; }
+  .chat-username-bar .chat-logout-btn:hover { color: #e07070; }
+
+  .chat-auth-panel {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 1rem;
+    gap: 0.5rem;
+    flex: 1;
+  }
+  .chat-auth-panel.active { display: flex; }
+  .chat-auth-title {
+    font-size: 0.6rem; letter-spacing: 0.14em;
+    color: var(--red); margin-bottom: 0.5rem; align-self: flex-start;
+  }
+  .chat-auth-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--white); font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem; padding: 0.45rem 0.6rem; outline: none; box-sizing: border-box;
+    transition: border-color 0.15s;
+  }
+  .chat-auth-input:focus { border-color: rgba(200,39,58,0.5); }
+  .chat-auth-btns { display: flex; gap: 0.4rem; width: 100%; margin-top: 0.1rem; }
+  .chat-auth-btn {
+    flex: 1; background: none; border: 1px solid var(--border);
+    color: var(--muted); font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem; padding: 0.4rem; cursor: pointer; transition: all 0.15s;
+  }
+  .chat-auth-btn:hover { border-color: rgba(200,39,58,0.5); color: var(--white); }
+  .chat-auth-btn.primary { background: rgba(200,39,58,0.12); border-color: rgba(200,39,58,0.4); color: #e07070; }
+  .chat-auth-btn.primary:hover { background: rgba(200,39,58,0.22); color: var(--white); }
+  .chat-auth-error {
+    font-size: 0.6rem; color: #e07070; display: none;
+    align-self: flex-start; margin-top: 0.1rem;
+  }
 
   .pdf-frame {
     flex: 1;
@@ -2575,8 +2612,22 @@
       <strong>⚠ ATENÇÃO:</strong> Este chat é exclusivo para este capítulo. Fale somente sobre o conteúdo deste capítulo. Spoilers de caps futuros, flood ou mensagens fora do contexto podem resultar em <strong>punição ou banimento</strong>.
     </div>
     <div class="chat-username-bar" id="chatUsernameBar">
-      Logado como: <span id="chatUsernameDisplay">—</span>
-      <button onclick="changeChatUsername()" title="Trocar nome">✎ trocar</button>
+      <span style="color:var(--muted);">Como:</span>
+      <span id="chatUsernameDisplay" style="color:var(--gold);font-weight:bold;">—</span>
+      <button class="chat-logout-btn" onclick="chatLogout()" style="margin-left:auto;background:none;border:none;cursor:pointer;font-family:'Share Tech Mono',monospace;">⎋ sair</button>
+    </div>
+    <div class="chat-auth-panel" id="chatAuthPanel">
+      <div class="chat-auth-title">⚡ IDENTIFICAÇÃO DO CHAT</div>
+      <input class="chat-auth-input" id="chatAuthUser" type="text" placeholder="Nome de usuário" maxlength="20" onkeydown="if(event.key==='Enter')chatLogin()">
+      <input class="chat-auth-input" id="chatAuthPass" type="password" placeholder="Senha" maxlength="50" onkeydown="if(event.key==='Enter')chatLogin()">
+      <div class="chat-auth-btns">
+        <button class="chat-auth-btn primary" onclick="chatLogin()">Entrar</button>
+        <button class="chat-auth-btn" onclick="chatRegister()">Criar conta</button>
+      </div>
+      <div class="chat-auth-error" id="chatAuthError"></div>
+      <div style="font-size:0.57rem;color:var(--muted);margin-top:0.5rem;text-align:center;line-height:1.5;">
+        Criar conta garante que só você<br>usa este nome no chat.
+      </div>
     </div>
     <div class="chat-reports-bar" id="chatReportsBar">
       <button class="chat-reports-bar-btn" id="chatReportsBarBtn" onclick="toggleReportsPanel()">
@@ -2590,7 +2641,7 @@
       <span class="chat-reply-bar-text">↩ <strong id="chatReplyUser"></strong>: <span id="chatReplyPreview"></span></span>
       <button class="chat-reply-clear" onclick="clearChatReply()" title="Cancelar resposta">✕</button>
     </div>
-    <div class="chat-input-area">
+    <div class="chat-input-area" id="chatInputArea">
       <input type="text" id="chatInput" placeholder="Mensagem..." maxlength="300"
         onkeydown="if(event.key==='Enter')sendChatMsg()">
       <button onclick="sendChatMsg()">Enviar</button>
@@ -4773,28 +4824,77 @@
     if (_chatPollInterval) { clearInterval(_chatPollInterval); _chatPollInterval = null; }
   }
 
-  function getChatUsername() {
-    if (_chatUsername) return _chatUsername;
-    let u = localStorage.getItem('chat_username');
-    if (!u) {
-      u = prompt('Escolha um nome de usuário para o chat (máx. 20 caracteres):');
-      if (!u || !u.trim()) u = 'Leitor' + Math.floor(Math.random() * 9999);
-      u = u.trim().substring(0, 20);
-      localStorage.setItem('chat_username', u);
-    }
-    _chatUsername = u;
+  function getChatUsername() { return _chatUsername || null; }
+
+  function _setChatSession(username) {
+    _chatUsername = username;
+    localStorage.setItem('chat_session', username);
     const el = document.getElementById('chatUsernameDisplay');
-    if (el) { el.textContent = _chatUsername; el.style.color = getUserColor(_chatUsername); }
-    return _chatUsername;
+    if (el) { el.textContent = username; el.style.color = getUserColor(username); }
   }
 
-  function changeChatUsername() {
-    const u = prompt('Novo nome de usuário (máx. 20 caracteres):', _chatUsername || '');
-    if (!u || !u.trim()) return;
-    _chatUsername = u.trim().substring(0, 20);
-    localStorage.setItem('chat_username', _chatUsername);
-    const el = document.getElementById('chatUsernameDisplay');
-    if (el) { el.textContent = _chatUsername; el.style.color = getUserColor(_chatUsername); }
+  function _showChatAuth(show) {
+    document.getElementById('chatAuthPanel').classList.toggle('active', show);
+    document.getElementById('chatUsernameBar').style.display = show ? 'none' : '';
+    document.getElementById('chatMessages').style.display = show ? 'none' : '';
+    document.getElementById('chatReplyBar').style.display = show ? 'none' : '';
+    document.getElementById('chatInputArea').style.display = show ? 'none' : '';
+    const rb = document.getElementById('chatReportsBar');
+    if (rb) rb.style.display = show ? 'none' : (Object.keys(_chatReports).length > 0 ? 'flex' : 'none');
+  }
+
+  function _chatAuthError(msg) {
+    const el = document.getElementById('chatAuthError');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  async function chatLogin() {
+    const username = (document.getElementById('chatAuthUser').value || '').trim();
+    const password = (document.getElementById('chatAuthPass').value || '').trim();
+    if (!username || !password) { _chatAuthError('Preencha nome e senha.'); return; }
+    if (!supaReady) { _chatAuthError('Sem conexão.'); return; }
+    const hash = await _h(password);
+    const { data, error } = await supaRead.from('chat_users').select('username').eq('username', username).eq('password_hash', hash).maybeSingle();
+    if (error || !data) { _chatAuthError('Nome ou senha incorretos.'); return; }
+    _chatAuthError('');
+    _setChatSession(username);
+    _showChatAuth(false);
+    loadChat();
+    startChatPoll();
+  }
+
+  async function chatRegister() {
+    const username = (document.getElementById('chatAuthUser').value || '').trim();
+    const password = (document.getElementById('chatAuthPass').value || '').trim();
+    if (!username) { _chatAuthError('Digite um nome de usuário.'); return; }
+    if (username.length < 2) { _chatAuthError('Nome muito curto (mín. 2 caracteres).'); return; }
+    if (!password || password.length < 4) { _chatAuthError('Senha muito curta (mín. 4 caracteres).'); return; }
+    if (!supaReady) { _chatAuthError('Sem conexão.'); return; }
+    const hash = await _h(password);
+    const { error } = await supaRead.from('chat_users').insert({ username, password_hash: hash });
+    if (error) {
+      if (error.code === '23505') _chatAuthError('Este nome já está em uso. Escolha outro.');
+      else _chatAuthError('Erro ao criar conta: ' + error.message);
+      return;
+    }
+    _chatAuthError('');
+    _setChatSession(username);
+    _showChatAuth(false);
+    loadChat();
+    startChatPoll();
+  }
+
+  function chatLogout() {
+    _chatUsername = null;
+    localStorage.removeItem('chat_session');
+    _showChatAuth(true);
+    stopChatPoll();
+    if (chatSubscription) { supaRead.removeChannel(chatSubscription); chatSubscription = null; }
+    document.getElementById('chatMessages').innerHTML = '';
+    document.getElementById('chatAuthUser').value = '';
+    document.getElementById('chatAuthPass').value = '';
   }
 
   function toggleChatPanel() {
@@ -4803,10 +4903,19 @@
     const isOpen = panel.classList.toggle('open');
     btn.classList.toggle('active', isOpen);
     if (isOpen) {
-      getChatUsername();
-      _lastMsgTime = null;
-      loadChat();
-      startChatPoll();
+      // Restaurar sessão salva
+      const saved = localStorage.getItem('chat_session');
+      if (saved) {
+        _chatUsername = saved;
+        const el = document.getElementById('chatUsernameDisplay');
+        if (el) { el.textContent = saved; el.style.color = getUserColor(saved); }
+        _showChatAuth(false);
+        _lastMsgTime = null;
+        loadChat();
+        startChatPoll();
+      } else {
+        _showChatAuth(true);
+      }
     } else {
       stopChatPoll();
       if (chatSubscription) { supaRead.removeChannel(chatSubscription); chatSubscription = null; }
