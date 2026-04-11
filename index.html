@@ -2778,6 +2778,21 @@
   let supa = null;
   let supaReady = false;
 
+  // ── IMGBB CONFIG ─────────────────────────────────────────────────────────────
+  const IMGBB_KEY = 'b4a702d250eed0eefccf7dcf52548a92';
+
+  async function uploadToImgBB(base64data) {
+    try {
+      const base64 = base64data.includes(',') ? base64data.split(',')[1] : base64data;
+      const formData = new FormData();
+      formData.append('image', base64);
+      const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: 'POST', body: formData });
+      const json = await res.json();
+      if (json && json.success) return json.data.url;
+      return null;
+    } catch(e) { console.warn('[RoseCat] ImgBB upload erro:', e); return null; }
+  }
+
   // Auth
   const _t = [88,69,89,79,73,75,94,117,75,78,71,117,93,117,24,26,24,30];
   const SUPA_ADM_TOKEN = _t.map(c => String.fromCharCode(c ^ 42)).join('');
@@ -2812,35 +2827,41 @@
       const client = supaWrite || supa;
       const pdfPromisesSync = [];
 
-      // Save mangas metadata (strip large base64 but keep __pages__ refs)
-      const stripped = mangas.map(m => {
+      // Save mangas metadata — upload covers to ImgBB, never to pages table
+      const strippedPromises = mangas.map(async m => {
         const mCopy = Object.assign({}, m);
         mCopy.chapters = m.chapters.map((ch, ci) => {
           const chCopy = Object.assign({}, ch);
-          // Keep __pages__ and __idb__ refs as-is so other browsers can restore from pages table
+          // Strip large base64 PDFs from metadata (PDFs only live in IndexedDB locally)
+          if (chCopy.pdf && chCopy.pdf.startsWith('data:')) {
+            const pdfKey = 'pdf_' + m.id + '_' + ci;
+            savePdf(pdfKey, chCopy.pdf).catch(() => {});
+            chCopy.pdf = '__idb__' + pdfKey;
+          }
           return chCopy;
         });
         if (m.cover && m.cover.startsWith('data:')) {
           const covKey = 'cover_' + m.id;
-          pdfPromisesSync.push(
-            savePdf(covKey, m.cover).then(() =>
-              client.from('pages').upsert({ key: covKey, data: m.cover })
-            )
-          );
-          mCopy.cover = '__idb__' + covKey;
+          await savePdf(covKey, m.cover).catch(() => {});
+          const url = await uploadToImgBB(m.cover);
+          if (url) {
+            mCopy.cover = url; // Store permanent ImgBB URL directly
+          } else {
+            mCopy.cover = '__idb__' + covKey; // Fallback to local only
+          }
         }
         return mCopy;
       });
 
-      await Promise.all(pdfPromisesSync);
+      const stripped = await Promise.all(strippedPromises);
 
       // Upsert manga metadata FIRST (fast - doesn't depend on pages)
       for (const m of stripped) {
         await client.from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
       }
 
-      // Then sync pages in background (don't await - pages sync separately)
-      syncPagesToSupabase().catch(() => {});
+      // PDFs dos capítulos ficam apenas no IndexedDB local (não sobem para o Supabase)
+      // syncPagesToSupabase() DESATIVADO para não encher o banco de dados
 
       // Delete any mangas in Supabase that are no longer in local list
       const currentIds = stripped.map(m => String(m.id));
@@ -2949,22 +2970,26 @@
 
       mangas = rows.map(r => r.data);
 
-      // Only load cover keys on startup — chapter pages load on demand
-      const coverKeys = mangas.filter(m => m.cover && m.cover.startsWith('__idb__')).map(m => m.cover.replace('__idb__', ''));
-      if (coverKeys.length > 0) {
-        const { data: coverRows } = await supa.from('pages').select('key, data').in('key', coverKeys);
-        if (coverRows) {
-          console.log('[RoseCat]', coverRows.length, 'capas carregadas');
-          for (const p of coverRows) { if (p.key && p.data) await savePdf(p.key, p.data); }
-        }
-      }
+      // Covers that are ImgBB URLs (https://...) are used directly — no pages table needed
+      // Only load __idb__ covers from pages table (legacy data) if not already in local IDB
+      const legacyCoverKeys = mangas
+        .filter(m => m.cover && m.cover.startsWith('__idb__'))
+        .map(m => ({ manga: m, key: m.cover.replace('__idb__', '') }));
 
-      // Restore __idb__ covers
-      for (const m of mangas) {
-        if (m.cover && m.cover.startsWith('__idb__')) {
-          const key = m.cover.replace('__idb__', '');
-          const data = await getPdf(key);
-          if (data) m.cover = data;
+      for (const { manga: m, key } of legacyCoverKeys) {
+        // Try local IDB first
+        const localData = await getPdf(key).catch(() => null);
+        if (localData) {
+          m.cover = localData;
+        } else {
+          // Try fetching from Supabase pages table (legacy fallback)
+          try {
+            const { data: coverRows } = await supa.from('pages').select('key, data').eq('key', key);
+            if (coverRows && coverRows.length > 0 && coverRows[0].data) {
+              await savePdf(key, coverRows[0].data).catch(() => {});
+              m.cover = coverRows[0].data;
+            }
+          } catch(e) {}
         }
       }
 
