@@ -2827,27 +2827,51 @@
       const client = supaWrite || supa;
       const pdfPromisesSync = [];
 
-      // Save mangas metadata — upload covers to ImgBB, never to pages table
+      // Save mangas metadata — upload covers & pages to ImgBB
       const strippedPromises = mangas.map(async m => {
         const mCopy = Object.assign({}, m);
-        mCopy.chapters = m.chapters.map((ch, ci) => {
+
+        // Process chapters: upload any remaining IDB page refs to ImgBB
+        mCopy.chapters = await Promise.all(m.chapters.map(async (ch, ci) => {
           const chCopy = Object.assign({}, ch);
-          // Strip large base64 PDFs from metadata (PDFs only live in IndexedDB locally)
-          if (chCopy.pdf && chCopy.pdf.startsWith('data:')) {
+          if (chCopy.pdf && chCopy.pdf.startsWith('__pages__')) {
+            try {
+              let defs = JSON.parse(chCopy.pdf.replace('__pages__', ''));
+              let changed = false;
+              defs = await Promise.all(defs.map(async (d) => {
+                if (d.type === 'idb' && d.key) {
+                  const data = await getPdf(d.key).catch(() => null);
+                  if (data) {
+                    const url = await uploadToImgBB(data);
+                    if (url) { changed = true; return { type: 'url', key: null, src: url }; }
+                  }
+                }
+                return d;
+              }));
+              if (changed) {
+                chCopy.pdf = '__pages__' + JSON.stringify(defs);
+                // Also update in-memory so local copy is consistent
+                ch.pdf = chCopy.pdf;
+              }
+            } catch(e) {}
+          } else if (chCopy.pdf && chCopy.pdf.startsWith('data:')) {
             const pdfKey = 'pdf_' + m.id + '_' + ci;
             savePdf(pdfKey, chCopy.pdf).catch(() => {});
             chCopy.pdf = '__idb__' + pdfKey;
           }
           return chCopy;
-        });
+        }));
+
+        // Upload cover to ImgBB if still base64
         if (m.cover && m.cover.startsWith('data:')) {
           const covKey = 'cover_' + m.id;
           await savePdf(covKey, m.cover).catch(() => {});
           const url = await uploadToImgBB(m.cover);
           if (url) {
-            mCopy.cover = url; // Store permanent ImgBB URL directly
+            mCopy.cover = url;
+            m.cover = url; // update in-memory too
           } else {
-            mCopy.cover = '__idb__' + covKey; // Fallback to local only
+            mCopy.cover = '__idb__' + covKey;
           }
         }
         return mCopy;
@@ -2970,26 +2994,14 @@
 
       mangas = rows.map(r => r.data);
 
-      // Covers that are ImgBB URLs (https://...) are used directly — no pages table needed
-      // Only load __idb__ covers from pages table (legacy data) if not already in local IDB
-      const legacyCoverKeys = mangas
-        .filter(m => m.cover && m.cover.startsWith('__idb__'))
-        .map(m => ({ manga: m, key: m.cover.replace('__idb__', '') }));
-
-      for (const { manga: m, key } of legacyCoverKeys) {
-        // Try local IDB first
-        const localData = await getPdf(key).catch(() => null);
-        if (localData) {
-          m.cover = localData;
-        } else {
-          // Try fetching from Supabase pages table (legacy fallback)
-          try {
-            const { data: coverRows } = await supa.from('pages').select('key, data').eq('key', key);
-            if (coverRows && coverRows.length > 0 && coverRows[0].data) {
-              await savePdf(key, coverRows[0].data).catch(() => {});
-              m.cover = coverRows[0].data;
-            }
-          } catch(e) {}
+      // Covers: ImgBB URLs (https://) are used directly
+      // __idb__ covers: restore from local IDB (only on the device that uploaded them)
+      for (const m of mangas) {
+        if (m.cover && m.cover.startsWith('__idb__')) {
+          const key = m.cover.replace('__idb__', '');
+          const localData = await getPdf(key).catch(() => null);
+          if (localData) m.cover = localData;
+          // else: cover stays as __idb__ ref — will be uploaded to ImgBB on next syncToSupabase
         }
       }
 
@@ -4013,25 +4025,8 @@
       pdf: document.getElementById('newChPdf').value.trim()
     });
 
-    // Extract only the keys for THIS new chapter's pages
-    const newPdfRef = document.getElementById('newChPdf').value.trim();
-    const newPageKeys = [];
-    if (newPdfRef.startsWith('__pages__')) {
-      try {
-        const defs = JSON.parse(newPdfRef.replace('__pages__', ''));
-        defs.forEach(d => { if (d.type === 'idb' && d.key) newPageKeys.push(d.key); });
-      } catch(e) {}
-    }
-
     save();
-
-    // Upload ONLY this chapter's pages to Supabase
-    if (supaReady && newPageKeys.length > 0) {
-      showSaveToast('⏳ Enviando ' + newPageKeys.length + ' páginas...');
-      syncSpecificPages(newPageKeys)
-        .then(() => showSaveToast('✓ Capítulo salvo!'))
-        .catch(() => showSaveToast('✓ Salvo localmente'));
-    }
+    // Pages were already uploaded to ImgBB by syncPagesHidden
 
     document.getElementById('newChNum').value = '';
     document.getElementById('newChTitle').value = '';
@@ -4209,34 +4204,44 @@
 
   function syncPagesHidden(pages) {
     const isEch = (pages === echPages);
+    const inputId = isEch ? 'echPdf' : 'newChPdf';
 
     if (pages.length === 0) {
-      if (isEch) document.getElementById('echPdf').value = '';
-      else document.getElementById('newChPdf').value = '';
+      document.getElementById(inputId).value = '';
       return;
     }
 
-    // Generate unique session key so chapters never overwrite each other
     const sessionKey = (isEch ? 'ech' : 'nch') + '_' + Date.now();
+    const imageCount = pages.filter(p => p.src && p.src.startsWith('data:')).length;
 
-    const toSave = pages.map(function(p, i) {
+    if (imageCount > 0) {
+      showSaveToast('\u23f3 Enviando ' + imageCount + ' p\u00e1ginas... (0/' + imageCount + ')');
+    }
+
+    let uploaded = 0;
+    const uploadPromises = pages.map(async function(p, i) {
+      const idbKey = sessionKey + '_' + i;
       if (p.src && p.src.startsWith('data:')) {
-        return { type: 'idb', key: sessionKey + '_' + i, src: null };
+        await savePdf(idbKey, p.src).catch(() => {});
+        const url = await uploadToImgBB(p.src);
+        uploaded++;
+        showSaveToast('\u23f3 Enviando p\u00e1ginas... (' + uploaded + '/' + imageCount + ')');
+        if (url) return { type: 'url', key: null, src: url };
+        return { type: 'idb', key: idbKey, src: null };
       }
       return { type: 'url', key: null, src: p.src };
     });
 
-    const savePromises = pages.map(function(p, i) {
-      if (p.src && p.src.startsWith('data:')) {
-        return savePdf(sessionKey + '_' + i, p.src);
-      }
-      return Promise.resolve();
-    });
-
-    Promise.all(savePromises).then(function() {
+    Promise.all(uploadPromises).then(function(toSave) {
       const ref = '__pages__' + JSON.stringify(toSave);
-      if (isEch) document.getElementById('echPdf').value = ref;
-      else document.getElementById('newChPdf').value = ref;
+      document.getElementById(inputId).value = ref;
+      const ok = toSave.filter(p => p.type === 'url' && p.src && p.src.startsWith('http')).length;
+      const total = toSave.length;
+      if (ok < total) {
+        showSaveToast('\u26a0 ' + ok + '/' + total + ' p\u00e1ginas enviadas (resto s\u00f3 local)');
+      } else if (imageCount > 0) {
+        showSaveToast('\u2713 ' + total + ' p\u00e1ginas prontas para todos os dispositivos!');
+      }
     });
   }
 
@@ -4689,25 +4694,9 @@
       pdf: document.getElementById('echPdf').value.trim()
     };
 
-    // Extract only keys for newly added pages in this edit
-    const echPdfRef = document.getElementById('echPdf').value.trim();
-    const echPageKeys = [];
-    if (echPdfRef.startsWith('__pages__')) {
-      try {
-        const defs = JSON.parse(echPdfRef.replace('__pages__', ''));
-        defs.forEach(d => { if (d.type === 'idb' && d.key) echPageKeys.push(d.key); });
-      } catch(e) {}
-    }
-
     save();
-    if (supaReady && echPageKeys.length > 0) {
-      showSaveToast('⏳ Enviando ' + echPageKeys.length + ' páginas...');
-      syncSpecificPages(echPageKeys)
-        .then(() => showSaveToast('✓ Capítulo salvo!'))
-        .catch(() => showSaveToast('✓ Salvo localmente'));
-    } else if (supaReady) {
-      showSaveToast('✓ Capítulo salvo!');
-    }
+    // Pages were already uploaded to ImgBB by syncPagesHidden
+    if (supaReady) showSaveToast('✓ Capítulo salvo!');
     document.getElementById('editChapterModal').classList.remove('open');
     rerenderChapters(m);
   }
@@ -4833,16 +4822,10 @@
         if (!error && rows && rows.length > 0) {
           mangas = rows.map(r => r.data);
 
-          // Only load cover keys from Supabase on startup (chapter pages load on demand)
-          const coverKeys = mangas.filter(m => m.cover && m.cover.startsWith('__idb__')).map(m => m.cover.replace('__idb__', ''));
-          if (coverKeys.length > 0) {
-            const { data: coverRows } = await supa.from('pages').select('key, data').in('key', coverKeys);
-            if (coverRows) for (const p of coverRows) { if (p.key && p.data) await savePdf(p.key, p.data); }
-          }
-
+          // Restaura capas __idb__ do IndexedDB local
           for (const m of mangas) {
             if (m.cover && m.cover.startsWith('__idb__')) {
-              const d = await getPdf(m.cover.replace('__idb__',''));
+              const d = await getPdf(m.cover.replace('__idb__','')).catch(() => null);
               if (d) m.cover = d;
             }
           }
@@ -4851,7 +4834,7 @@
           console.log('[RoseCat] Carregado do Supabase:', mangas.length);
           hideLoading(); renderGrid(mangas); buildGenreList(); restoreFromHash();
 
-          // Se sessão ADM salva, re-ativa e sincroniza páginas automaticamente
+          // Se sessão ADM salva, re-ativa e migra páginas __idb__ para ImgBB automaticamente
           if (localStorage.getItem('__adm_session__') === '1') {
             isAdm = true;
             const ab = document.getElementById('admAddBtn');
@@ -4860,10 +4843,10 @@
             if (rb) rb.style.display = 'flex';
             checkGlobalReportsDot();
             applyFilters();
-            // Auto-sync silencioso em background
+            // Auto-sync: converte refs __idb__ para URLs ImgBB permanentes
             setTimeout(() => {
-              syncPagesToSupabase()
-                .then(() => showSaveToast('✓ Páginas sincronizadas!'))
+              syncToSupabase()
+                .then(() => showSaveToast('✓ Sincronizado!'))
                 .catch(() => {});
             }, 1500);
           }
