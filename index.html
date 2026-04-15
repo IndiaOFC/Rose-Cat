@@ -2431,6 +2431,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:0.6rem;">
       <button id="admReportsBtn" onclick="openGlobalReports()" title="Denúncias" style="display:none;position:relative;width:38px;height:38px;border-radius:50%;background:rgba(200,39,58,0.1);border:1.5px solid rgba(200,39,58,0.5);color:#e07070;font-size:1rem;cursor:pointer;transition:all 0.2s;padding:0;flex-shrink:0;" onmouseover="this.style.background='rgba(200,39,58,0.2)'" onmouseout="this.style.background='rgba(200,39,58,0.1)'">⚑<span id="admReportsDot" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg1);"></span></button>
+      <button id="admSyncBtn" onclick="forceSyncAll()" title="Sincronizar tudo com o servidor" style="display:none;width:38px;height:38px;border-radius:50%;background:rgba(74,127,212,0.12);border:1.5px solid rgba(74,127,212,0.5);color:#4a7fd4;font-size:1rem;cursor:pointer;transition:all 0.2s;padding:0;flex-shrink:0;" onmouseover="this.style.background='rgba(74,127,212,0.25)'" onmouseout="this.style.background='rgba(74,127,212,0.12)'">↑</button>
       <button id="admAddBtn" onclick="openAddModal()" style="display:none;width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(232,74,106,0.18),rgba(155,89,182,0.1) 60%,rgba(74,127,212,0.08));border:1.5px solid rgba(232,74,106,0.6);color:#e84a6a;font-size:1.25rem;line-height:1;cursor:pointer;box-shadow:0 0 12px rgba(200,39,58,0.5);transition:box-shadow 0.3s,transform 0.2s;font-family:'Share Tech Mono',monospace;padding:0;display:none;justify-content:center;align-items:center;" onmouseover="this.style.boxShadow='0 0 16px rgba(200,39,58,0.7),0 0 32px rgba(155,89,182,0.4),0 0 50px rgba(74,127,212,0.25)';this.style.transform='scale(1.1)'" onmouseout="this.style.boxShadow='0 0 10px rgba(200,39,58,0.45),0 0 22px rgba(155,89,182,0.25),0 0 38px rgba(74,127,212,0.15)';this.style.transform='scale(1)'">＋</button>
       <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn" aria-label="Menu">
         <span></span><span></span><span></span>
@@ -2825,82 +2826,106 @@
     try {
       console.log('[RoseCat] Salvando no Supabase...');
       const client = supaWrite || supa;
-      const pdfPromisesSync = [];
 
-      // Save mangas metadata — upload covers & pages to ImgBB
-      const strippedPromises = mangas.map(async m => {
+      // ── PASSO 1: salva IMEDIATAMENTE no Supabase com os dados que existem ──
+      // Strips base64 but keeps __idb__ and __pages__ refs as-is
+      // This ensures Supabase always has the latest chapter list even if ImgBB fails
+      const quickStrip = mangas.map(m => {
         const mCopy = Object.assign({}, m);
-
-        // Process chapters: upload any remaining IDB page refs to ImgBB
-        mCopy.chapters = await Promise.all(m.chapters.map(async (ch, ci) => {
+        mCopy.chapters = m.chapters.map((ch, ci) => {
           const chCopy = Object.assign({}, ch);
-          if (chCopy.pdf && chCopy.pdf.startsWith('__pages__')) {
-            try {
-              let defs = JSON.parse(chCopy.pdf.replace('__pages__', ''));
-              let changed = false;
-              defs = await Promise.all(defs.map(async (d) => {
-                if (d.type === 'idb' && d.key) {
-                  const data = await getPdf(d.key).catch(() => null);
-                  if (data) {
-                    const url = await uploadToImgBB(data);
-                    if (url) { changed = true; return { type: 'url', key: null, src: url }; }
-                  }
-                }
-                return d;
-              }));
-              if (changed) {
-                chCopy.pdf = '__pages__' + JSON.stringify(defs);
-                // Also update in-memory so local copy is consistent
-                ch.pdf = chCopy.pdf;
-              }
-            } catch(e) {}
-          } else if (chCopy.pdf && chCopy.pdf.startsWith('data:')) {
+          if (chCopy.pdf && chCopy.pdf.startsWith('data:')) {
             const pdfKey = 'pdf_' + m.id + '_' + ci;
             savePdf(pdfKey, chCopy.pdf).catch(() => {});
             chCopy.pdf = '__idb__' + pdfKey;
           }
           return chCopy;
-        }));
-
-        // Upload cover to ImgBB if still base64
-        if (m.cover && m.cover.startsWith('data:')) {
-          const covKey = 'cover_' + m.id;
-          await savePdf(covKey, m.cover).catch(() => {});
-          const url = await uploadToImgBB(m.cover);
-          if (url) {
-            mCopy.cover = url;
-            m.cover = url; // update in-memory too
-          } else {
-            mCopy.cover = '__idb__' + covKey;
-          }
+        });
+        if (mCopy.cover && mCopy.cover.startsWith('data:') && mCopy.cover.length > 50000) {
+          mCopy.cover = '__idb__cover_' + m.id;
         }
         return mCopy;
       });
 
-      const stripped = await Promise.all(strippedPromises);
-
-      // Upsert manga metadata FIRST (fast - doesn't depend on pages)
-      for (const m of stripped) {
-        await client.from('mangas').upsert({ id: String(m.id), data: m, updated_at: new Date().toISOString() });
+      // Save to Supabase NOW — fast, no waiting for ImgBB
+      for (const m of quickStrip) {
+        await client.from('mangas').upsert({
+          id: String(m.id),
+          data: m,
+          updated_at: new Date().toISOString()
+        });
       }
+      console.log('[RoseCat] Supabase salvo:', quickStrip.length, 'mangás');
 
-      // PDFs dos capítulos ficam apenas no IndexedDB local (não sobem para o Supabase)
-      // syncPagesToSupabase() DESATIVADO para não encher o banco de dados
-
-      // Delete any mangas in Supabase that are no longer in local list
-      const currentIds = stripped.map(m => String(m.id));
+      // Delete removed mangas
+      const currentIds = quickStrip.map(m => String(m.id));
       const { data: remoteRows } = await client.from('mangas').select('id');
       if (remoteRows) {
         for (const row of remoteRows) {
           if (!currentIds.includes(row.id)) {
             await client.from('mangas').delete().eq('id', row.id);
-            console.log('[RoseCat] Removido do Supabase:', row.id);
           }
         }
       }
 
+      // ── PASSO 2: em background, tenta migrar __idb__ refs para ImgBB ──
+      // Runs async — does NOT block the save above
+      upgradeIdbToImgBB(client).catch(() => {});
+
     } catch(e) {
       console.warn('Supabase sync error:', e);
+    }
+  }
+
+  // Background: convert __idb__ page refs to ImgBB URLs and re-save to Supabase
+  async function upgradeIdbToImgBB(client) {
+    if (!client) client = supaWrite || supa;
+    let totalUpgraded = 0;
+
+    for (const m of mangas) {
+      let mangaChanged = false;
+
+      // Upgrade cover
+      if (m.cover && m.cover.startsWith('__idb__')) {
+        const key = m.cover.replace('__idb__', '');
+        const data = await getPdf(key).catch(() => null);
+        if (data) {
+          const url = await uploadToImgBB(data);
+          if (url) { m.cover = url; mangaChanged = true; }
+        }
+      }
+
+      // Upgrade chapter pages
+      for (const ch of m.chapters) {
+        if (!ch.pdf || !ch.pdf.startsWith('__pages__')) continue;
+        let defs;
+        try { defs = JSON.parse(ch.pdf.replace('__pages__', '')); } catch(e) { continue; }
+        let chChanged = false;
+        const newDefs = await Promise.all(defs.map(async (d) => {
+          if (d.type !== 'idb' || !d.key) return d;
+          const data = await getPdf(d.key).catch(() => null);
+          if (!data) return d;
+          const url = await uploadToImgBB(data);
+          if (url) { chChanged = true; totalUpgraded++; return { type: 'url', key: null, src: url }; }
+          return d;
+        }));
+        if (chChanged) { ch.pdf = '__pages__' + JSON.stringify(newDefs); mangaChanged = true; }
+      }
+
+      // If this manga changed, save it back to Supabase with the new URLs
+      if (mangaChanged) {
+        const mCopy = Object.assign({}, m, { chapters: m.chapters });
+        await client.from('mangas').upsert({
+          id: String(m.id),
+          data: mCopy,
+          updated_at: new Date().toISOString()
+        }).catch(() => {});
+      }
+    }
+
+    if (totalUpgraded > 0) {
+      console.log('[RoseCat] ImgBB upgrade: ' + totalUpgraded + ' páginas migradas');
+      showSaveToast('✓ ' + totalUpgraded + ' páginas migradas para o servidor!');
     }
   }
 
@@ -4491,9 +4516,10 @@
         // neon apenas no botão +Novo
         applyFilters(); // re-render cards with ADM buttons
         // Auto-migrate: push all local IDB pages to Supabase silently
+        const sb = document.getElementById('admSyncBtn');
+        if (sb) sb.style.display = 'flex';
         if (supaReady) {
-          showSaveToast('⏳ Sincronizando páginas...');
-          syncPagesToSupabase().then(() => showSaveToast('✓ Páginas sincronizadas!')).catch(() => {});
+          syncToSupabase().then(() => showSaveToast('✓ Sincronizado!')).catch(() => {});
         }      } else {
         document.getElementById('admError').style.display = 'block';
         document.getElementById('admCodeInput').value = '';
@@ -4773,6 +4799,20 @@
     });
   }
 
+  // Forçar sincronização completa com o servidor
+  async function forceSyncAll() {
+    const btn = document.getElementById('admSyncBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳'; btn.style.opacity = '0.6'; }
+    showSaveToast('⏳ Sincronizando com o servidor...');
+    try {
+      await syncToSupabase();
+      showSaveToast('✓ Sincronizado! Migrando imagens em background...');
+    } catch(e) {
+      showSaveToast('✗ Erro ao sincronizar');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '↑'; btn.style.opacity = ''; }
+  }
+
     // ── INIT ──────────────────────────────────────────────────────────────────
   // Garante que todos os mangás sem status recebam 'recente' automaticamente
   let changed = false;
@@ -4843,12 +4883,14 @@
             if (rb) rb.style.display = 'flex';
             checkGlobalReportsDot();
             applyFilters();
-            // Auto-sync: converte refs __idb__ para URLs ImgBB permanentes
+            const sb = document.getElementById('admSyncBtn');
+            if (sb) sb.style.display = 'flex';
+            // Auto-sync immediately on ADM login
             setTimeout(() => {
               syncToSupabase()
                 .then(() => showSaveToast('✓ Sincronizado!'))
                 .catch(() => {});
-            }, 1500);
+            }, 800);
           }
           return;
 
