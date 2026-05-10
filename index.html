@@ -3117,9 +3117,11 @@
       } catch(e) {
         console.error('localStorage still full:', e);
       }
-      // Sync to Supabase em background
+      // Sync to Supabase em background (metadata + páginas)
       syncToSupabase().then(() => {
         showSaveToast('✓ Sincronizado');
+        // Envia páginas IDB para o Supabase também (garante acesso em outros dispositivos)
+        syncPagesToSupabase().catch(() => {});
       }).catch(() => {});
     });
   }
@@ -4467,6 +4469,40 @@
 
   // ── ADM ──────────────────────────────────────────────────────────────────
   let isAdm = false;
+  let _bgSyncInterval = null;
+
+  function startBgSync() {
+    stopBgSync();
+    if (!supaReady) return;
+    // Sync pages every 3 minutes while ADM is active
+    _bgSyncInterval = setInterval(async function() {
+      if (!isAdm || !supaReady) return;
+      try {
+        await syncToSupabase();
+        await syncPagesToSupabase();
+        upgradeIdbToImgBB(supaWrite || supa).catch(() => {});
+        console.log('[RoseCat] Auto-sync em background concluído.');
+      } catch(e) {
+        console.warn('[RoseCat] Auto-sync erro:', e);
+      }
+    }, 3 * 60 * 1000); // 3 minutos
+    console.log('[RoseCat] Auto-sync ativado (a cada 3 min).');
+  }
+
+  function stopBgSync() {
+    if (_bgSyncInterval) { clearInterval(_bgSyncInterval); _bgSyncInterval = null; }
+  }
+
+  // Sync when tab regains focus (ex: voltou ao computador e quer garantir sync)
+  document.addEventListener('visibilitychange', async function() {
+    if (document.visibilityState === 'visible' && isAdm && supaReady) {
+      console.log('[RoseCat] Tab visível — verificando sync...');
+      try {
+        await syncToSupabase();
+        await syncPagesToSupabase();
+      } catch(e) {}
+    }
+  });
     const _ab = document.getElementById('admAddBtn');
     if (_ab) _ab.style.display = 'none';
     const _logo = document.querySelector('.logo');
@@ -4519,7 +4555,17 @@
         const sb = document.getElementById('admSyncBtn');
         if (sb) sb.style.display = 'flex';
         if (supaReady) {
-          syncToSupabase().then(() => showSaveToast('✓ Sincronizado!')).catch(() => {});
+          syncToSupabase()
+            .then(() => {
+              showSaveToast('✓ Sincronizando páginas...');
+              return syncPagesToSupabase();
+            })
+            .then(() => {
+              upgradeIdbToImgBB(supaWrite || supa).catch(() => {});
+              showSaveToast('✓ Tudo sincronizado!');
+              startBgSync();
+            })
+            .catch(() => {});
         }      } else {
         document.getElementById('admError').style.display = 'block';
         document.getElementById('admCodeInput').value = '';
@@ -4628,6 +4674,7 @@
 
   function admLogout() {
     isAdm = false;
+    stopBgSync();
     document.querySelectorAll('.adm-only').forEach(el => el.style.display = 'none');
     const rb = document.getElementById('admReportsBtn');
     if (rb) rb.style.display = 'none';
@@ -4803,12 +4850,15 @@
   async function forceSyncAll() {
     const btn = document.getElementById('admSyncBtn');
     if (btn) { btn.disabled = true; btn.textContent = '⏳'; btn.style.opacity = '0.6'; }
-    showSaveToast('⏳ Sincronizando com o servidor...');
+    showSaveToast('⏳ Sincronizando metadados...');
     try {
       await syncToSupabase();
-      showSaveToast('✓ Sincronizado! Migrando imagens em background...');
+      showSaveToast('⏳ Enviando páginas para o servidor...');
+      await syncPagesToSupabase();
+      upgradeIdbToImgBB(supaWrite || supa).catch(() => {});
+      showSaveToast('✓ Tudo sincronizado! Outros dispositivos já podem acessar.');
     } catch(e) {
-      showSaveToast('✗ Erro ao sincronizar');
+      showSaveToast('✗ Erro ao sincronizar: ' + (e && e.message ? e.message : e));
     }
     if (btn) { btn.disabled = false; btn.textContent = '↑'; btn.style.opacity = ''; }
   }
@@ -4888,7 +4938,15 @@
             // Auto-sync immediately on ADM login
             setTimeout(() => {
               syncToSupabase()
-                .then(() => showSaveToast('✓ Sincronizado!'))
+                .then(() => {
+                  showSaveToast('✓ Sincronizando páginas...');
+                  return syncPagesToSupabase();
+                })
+                .then(() => {
+                  upgradeIdbToImgBB(supaWrite || supa).catch(() => {});
+                  showSaveToast('✓ Tudo sincronizado!');
+                  startBgSync();
+                })
                 .catch(() => {});
             }, 800);
           }
